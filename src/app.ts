@@ -46,6 +46,7 @@ import {
   addVoid,
   addEdit,
   addDetailEdit,
+  countsInStats,
   createGame,
   defaultVenue,
   gameInfo,
@@ -146,6 +147,8 @@ interface State {
   analysisKind: AnalysisKind;
   /** 마지막으로 백업한 시각 (이 휴대폰에 기억) */
   lastBackupAt: string | null;
+  /** 미니게임에서 경기 끝을 물어보는 중인지 */
+  confirmEnd: boolean;
 }
 
 const DETAIL_MODE_KEY = 'baseball-counter.pitch-detail';
@@ -188,7 +191,7 @@ function childSummary(games: readonly Game[]): string[] {
 
 export function replayOf(game: Game): GameReplay {
   const info = gameInfo(game);
-  return replayGame(playEvents(activeEvents(game.events)), { battingFirst: info.battingFirst });
+  return replayGame(playEvents(activeEvents(game.events)), { battingFirst: info.battingFirst, miniGame: info.gameType === 'mini' });
 }
 
 const ERROR_REASON = '실책으로 바뀐 주자·아웃·점수를 맞춰 주세요. 바뀐 게 없으면 취소를 누르세요.';
@@ -268,6 +271,7 @@ export function mountApp(root: HTMLElement): void {
     childBatterHand: loadChildBatterHand(),
     analysisKind: 'pitcher',
     lastBackupAt: loadLastBackup(),
+    confirmEnd: false,
   };
 
   const currentGame = (): Game | undefined => state.games.find((g) => g.id === state.currentGameId);
@@ -301,6 +305,7 @@ export function mountApp(root: HTMLElement): void {
     state.playFielding = null;
     state.batterDraft = null;
     state.tip = null;
+    state.confirmEnd = false;
     render();
     window.scrollTo(0, 0);
   };
@@ -565,6 +570,23 @@ export function mountApp(root: HTMLElement): void {
       state.situationDraft = null;
       render();
     },
+    askEndGame: (open: boolean) => {
+      state.confirmEnd = open;
+      state.chooser = null;
+      state.situationDraft = null;
+      render();
+    },
+    resumeGame: () => {
+      const game = currentGame();
+      if (!game) return;
+      // 미니게임은 장면 설정 없이, "경기 끝" 기록을 취소해 멈춘 곳에서 이어 간다. (지우지 않고 취소 기록을 덧붙임)
+      if (gameInfo(game).gameType === 'mini') {
+        const lastEnd = [...activeEvents(game.events)].reverse().find((e) => e.kind === 'gameEnd');
+        if (lastEnd) updateCurrent((g) => addVoid(g, lastEnd.id));
+        return;
+      }
+      inputActions.openScene();
+    },
     openGames: () => {
       state.resultGameId = null;
       go('games');
@@ -609,6 +631,7 @@ export function mountApp(root: HTMLElement): void {
       },
       endGame: () => {
         state.sceneDraft = null;
+        state.confirmEnd = false;
         updateCurrent((g) => addGameEnd(g));
       },
     },
@@ -781,10 +804,13 @@ export function mountApp(root: HTMLElement): void {
   /** 분석 "선택한 경기": 고른 경기가 없으면 지금 기록 중인 경기 */
   const analysisGame = (fallback: Game): Game => state.games.find((g) => g.id === state.analysisGameId) ?? fallback;
 
+  // "전체"는 미니게임·기타를 빼고 센다. "선택한 경기"는 고른 경기 하나를 그대로 보여준다.
+  const statsGames = (): Game[] => state.games.filter(countsInStats);
+
   const scopedGames = (game: Game): GameForStats[] =>
     state.analysisScope === 'game'
       ? [{ label: gameShortLabel(game), replay: replayOf(game) }]
-      : state.games.map((g) => ({ label: gameShortLabel(g), replay: replayOf(g) }));
+      : statsGames().map((g) => ({ label: gameShortLabel(g), replay: replayOf(g) }));
 
   const helpActions = {
     close: () => {
@@ -944,6 +970,7 @@ export function mountApp(root: HTMLElement): void {
             batterDraft: state.batterDraft,
             tip: state.tip?.key ?? null,
             childBatterHand: state.childBatterHand,
+            confirmEnd: state.confirmEnd,
           },
           inputActions,
         );
@@ -959,8 +986,9 @@ export function mountApp(root: HTMLElement): void {
             },
             'kind-tabs',
           ),
-          analysisView(state.analysisKind)(scopedGames(chosen), state.games.length, state.analysisScope, state.analysisTab, {
+          analysisView(state.analysisKind)(scopedGames(chosen), statsGames().length, state.analysisScope, state.analysisTab, {
             ...analysisActions,
+            excludedGames: state.games.length - statsGames().length,
             gameOptions: sortGames(state.games, 'newest').map((g) => [g.id, gameShortLabel(g)]),
             selectedGameId: chosen.id,
           }),

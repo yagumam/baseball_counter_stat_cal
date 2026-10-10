@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Game, createGame, gameInfo, isGame, recentOpponents, shiftDate, upgradeLegacyGame } from './game';
+import { Game, countsInStats, createGame, gameInfo, isGame, recentOpponents, shiftDate, upgradeLegacyGame } from './game';
+import { GameType } from './events';
 import { LogEvent } from './events';
 
 const legacyPitch: LogEvent = { kind: 'pitch', id: 'p1', createdAt: '2026-10-01T00:00:00.000Z', author: '나', result: 'ball' };
@@ -64,5 +65,22 @@ describe('아웃 종류 저장 검사', () => {
     expect(isGame(withPitch({ result: 'hit', outType: 'sacrificeFly' }))).toBe(false);
     expect(isGame(withPitch({ result: 'out', outType: 'sacrificeBunt', doublePlay: 0 }))).toBe(false);
     expect(isGame(withPitch({ result: 'out', outType: 'triple' }))).toBe(false);
+  });
+});
+
+describe('경기 구분과 통계', () => {
+  const ofType = (gameType: GameType) => createGame({ date: '2026-10-10', opponent: '', gameType, battingFirst: 'them', venue: 'home', ourTeam: '' });
+
+  it('미니게임 · 기타는 통계에서 빼고, 연습 · 대회 · 예전 리그경기는 넣는다', () => {
+    expect(countsInStats(ofType('mini'))).toBe(false);
+    expect(countsInStats(ofType('other'))).toBe(false);
+    expect(countsInStats(ofType('practice'))).toBe(true);
+    expect(countsInStats(ofType('tournament'))).toBe(true);
+    expect(countsInStats(ofType('league'))).toBe(true);
+  });
+
+  it('예전 리그경기 기록도 그대로 읽힌다', () => {
+    expect(isGame(ofType('league'))).toBe(true);
+    expect(isGame(ofType('mini'))).toBe(true);
   });
 });

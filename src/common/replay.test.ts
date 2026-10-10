@@ -322,3 +322,52 @@ describe('지난 공 고치기', () => {
     expect(pitch).not.toHaveProperty('speed');
   });
 });
+
+describe('미니게임 (장면 설정 없이 1회초부터)', () => {
+  const mini = (battingFirst: 'us' | 'them', ...events: PlayLogEvent[]) => replayGame(events, { battingFirst, miniGame: true });
+  const threeOuts = () => pitches('out', 'out', 'out');
+
+  it('기록이 없어도 1회초 장면이 열려 있다: 후공이면 아이가 투수', () => {
+    const r = mini('them');
+    expect(r.state).toMatchObject({ role: 'pitcher', inning: 1, half: 'top', outs: 0 });
+  });
+
+  it('선공이면 1회초에 아이가 타자', () => {
+    expect(mini('us').state).toMatchObject({ role: 'batter', inning: 1, half: 'top' });
+  });
+
+  it('3아웃마다 초·말이 바뀌고 역할도 바뀐다: 1회초 투수 → 1회말 타자 → 2회초 투수', () => {
+    const afterTop = mini('them', ...threeOuts());
+    expect(afterTop.state).toMatchObject({ role: 'batter', inning: 1, half: 'bottom', outs: 0 });
+    const afterBottom = mini('them', ...threeOuts(), ...threeOuts());
+    expect(afterBottom.state).toMatchObject({ role: 'pitcher', inning: 2, half: 'top' });
+    expect(afterBottom.scenes.map((s) => s.endedBy)).toEqual(['halfOver', 'halfOver', null]);
+  });
+
+  it('우리 공격에서는 타자가 매번 아이: 안타로 나가도 다음 타석도 아이 타석', () => {
+    const r = mini('us', hit('single'), ...pitches('out'));
+    expect(r.plateAppearances.map((pa) => pa.actor)).toEqual(['child', 'child']);
+    expect(r.state).toMatchObject({ role: 'batter', childBase: null, bases: [true, false, false], outs: 1 });
+  });
+
+  it('주자 1루에서 아이가 2루타: 주자는 3루, 아이는 2루 (밀어내기만 자동)', () => {
+    const r = mini('us', hit('single'), hit('double'));
+    expect(r.state?.bases).toEqual([false, true, true]);
+  });
+
+  it('점수는 초·말별로 쌓인다: 1회초 상대 1점, 1회말 우리 홈런 1점', () => {
+    const r = mini('them', hit('homeRun'), ...threeOuts(), hit('homeRun'));
+    expect(r.halves.get('1T')?.runs).toBe(1);
+    expect(r.halves.get('1B')?.runs).toBe(1);
+  });
+
+  it('경기 끝을 누르면 더 이상 장면이 열리지 않는다', () => {
+    const r = mini('them', ...threeOuts(), gameEnd());
+    expect(r.state).toBeNull();
+    expect(r.gameEnded).toBe(true);
+  });
+
+  it('미니게임이 아니면 예전처럼 장면을 정해야 시작한다', () => {
+    expect(replayGame(threeOuts(), settings()).state).toBeNull();
+  });
+});

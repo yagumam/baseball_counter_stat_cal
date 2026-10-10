@@ -2776,6 +2776,11 @@ input[type='file'].visually-hidden {
   background: var(--strike);
 }
 
+.calendar-dot.mini {
+  background: var(--extra);
+}
+
+/* 예전 기록의 리그경기 */
 .calendar-dot.league {
   background: var(--out);
 }

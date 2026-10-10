@@ -122,7 +122,7 @@ export function pitchesFileName(today: string): string {
 }
 
 /** 백업 파일 이름에 쓰는 짧은 경기 구분 */
-const GAME_TYPE_SHORT: Record<GameType, string> = { practice: '연습', tournament: '대회', league: '리그', other: '기타' };
+const GAME_TYPE_SHORT: Record<GameType, string> = { practice: '연습', tournament: '대회', mini: '미니', other: '기타', league: '리그' };
 
 /** 파일 이름에 쓸 수 없는 글자와 띄어쓰기를 뺀다. */
 function fileSafe(text: string): string {

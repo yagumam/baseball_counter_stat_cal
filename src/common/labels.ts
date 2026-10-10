@@ -269,6 +269,9 @@ export const GAME_OVER_LABEL = { resume: '다시 이어서 기록', result: '경
 /** 장면 바꾸기 화면 아래 단추: 아이가 빠짐 / 경기 기록을 마침 */
 export const SCENE_END_BUTTON = { exit: '교체 아웃/기록 종료', gameEnd: '경기 끝 (기록 마치기)' } as const;
 
+/** 미니게임 기록 화면: 장면 바꾸기 대신 경기 끝 단추, 마칠지 묻는 창의 계속 단추 */
+export const MINI_GAME_LABEL = { end: '경기 끝 ›', keepGoing: '계속 기록' } as const;
+
 /** 주자인 우리 아이에게 바로 기록하는 버튼 */
 export type ChildRunnerAction = 'stolenBase' | 'caughtStealing' | 'pickoff' | 'pickoffOut' | 'advance' | 'scored' | 'out';
 

@@ -116,9 +116,20 @@ export type BaseIndex = 0 | 1 | 2;
 
 export type Bases = readonly [boolean, boolean, boolean];
 
-export type GameType = 'practice' | 'tournament' | 'league' | 'other';
+/**
+ * 경기 구분. mini(미니게임)는 아이와 1:1로 재미 삼아 하는 경기라 장면 설정 없이 1회부터 기록한다.
+ * league(리그경기)는 이제 고를 수 없지만 예전 기록을 읽기 위해 남긴다.
+ */
+export type GameType = 'practice' | 'tournament' | 'mini' | 'other' | 'league';
 
-export const GAME_TYPES: readonly GameType[] = ['practice', 'tournament', 'league', 'other'];
+/** 새로 고를 수 있는 경기 구분 */
+export const GAME_TYPES: readonly GameType[] = ['practice', 'tournament', 'mini', 'other'];
+
+/** 저장된 기록에 있을 수 있는 경기 구분 (예전 리그경기 포함) */
+export const STORED_GAME_TYPES: readonly GameType[] = [...GAME_TYPES, 'league'];
+
+/** 통계(분석 "전체")에서 빼는 경기 구분: 재미로 한 미니게임과 기타 */
+export const STATS_EXCLUDED_GAME_TYPES: readonly GameType[] = ['mini', 'other'];
 
 export type Team = 'us' | 'them';
 
@@ -499,7 +510,7 @@ export function isLogEvent(value: unknown): value is LogEvent {
       return (
         typeof value.date === 'string' &&
         typeof value.opponent === 'string' &&
-        GAME_TYPES.includes(value.gameType as GameType) &&
+        STORED_GAME_TYPES.includes(value.gameType as GameType) &&
         (value.startInning === undefined || isCount(value.startInning, 1, MAX_INNING)) &&
         (value.battingFirst === undefined || value.battingFirst === 'us' || value.battingFirst === 'them') &&
         (value.venue === undefined || value.venue === 'home' || value.venue === 'away') &&

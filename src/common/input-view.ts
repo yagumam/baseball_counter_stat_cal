@@ -22,6 +22,8 @@ import {
   ROLE_LABEL,
   OTHER_RUNNER_OUT_LABEL,
   GAME_OVER_LABEL,
+  MINI_GAME_LABEL,
+  SCENE_END_BUTTON,
   RUNNER_BUTTONS,
   RunnerAction,
   eventLabel,
@@ -61,6 +63,10 @@ export interface InputActions {
   editSituation: (draft: SituationDraft | null) => void;
   saveSituation: (draft: SituationDraft) => void;
   openScene: () => void;
+  /** 미니게임: 경기 끝을 물어보는 창 열기·닫기 */
+  askEndGame: (open: boolean) => void;
+  /** 경기 끝 뒤 다시 이어서 기록 (미니게임은 장면 설정 없이 이어 간다) */
+  resumeGame: () => void;
   openGames: () => void;
   openScoreboard: () => void;
   scene: SceneSetupActions;
@@ -97,6 +103,8 @@ export interface InputModel {
   readonly tip: TipKey | null;
   /** 설정: 우리 아이가 서는 타석 */
   readonly childBatterHand: BatterHand | null;
+  /** 미니게임에서 경기 끝을 물어보는 중인지 */
+  readonly confirmEnd: boolean;
 }
 
 function dots(filled: number, total: number, kind: string, label: string): HTMLElement {
@@ -152,6 +160,11 @@ function message(replay: GameReplay): string {
   // 지금 장면에서 기록한 것만 본다.
   const pas = replay.plateAppearances.filter((pa) => pa.sceneId === state.sceneId);
   const last = pas[pas.length - 1];
+  // 미니게임은 3아웃이면 다음 초·말 장면이 저절로 열린다.
+  const previous = replay.scenes[replay.scenes.length - 2];
+  if (!last && previous?.endedBy === 'halfOver' && lastScene?.id === state.sceneId) {
+    return `3아웃! 이제 ${halfInningLabel(state.inning, state.half)} · 아이가 ${roleText(state)}`;
+  }
   if (!last) return state.role === 'runner' ? '아이에게 일어난 일이나 지금 타자의 공을 기록하세요.' : '공마다 결과 버튼을 누르세요.';
   if (last.outcome === null) {
     const lastEvent = last.timeline[last.timeline.length - 1];
@@ -168,9 +181,14 @@ function board(model: InputModel, actions: InputActions): HTMLElement {
   const { replay, info, score } = model;
   const state = replay.state;
 
+  // 미니게임은 장면 설정이 없으므로 그 자리에 경기 끝 단추를 둔다. (진행 중일 때만)
+  const sceneButton =
+    info.gameType === 'mini' && state
+      ? h('button', { className: 'board-scene', text: MINI_GAME_LABEL.end, onClick: () => actions.askEndGame(true) })
+      : h('button', { className: 'board-scene', text: '장면 바꾸기 ›', onClick: actions.openScene });
   const head = h('div', { className: 'board-head' }, [
     h('button', { className: 'board-game', onClick: actions.openGames }, [`${dateLabel(info.date)} · ${opponentLabel(info.opponent)}`]),
-    h('button', { className: 'board-scene', text: '장면 바꾸기 ›', onClick: actions.openScene }),
+    sceneButton,
   ]);
   const scorePill = h('button', { className: 'pill score', onClick: actions.openScoreboard }, [
     h('small', { text: '상대 ' }),
@@ -482,7 +500,7 @@ function controls(model: InputModel, actions: InputActions): HTMLElement {
         h('p', { className: 'section-title', text: '이 경기 기록을 마쳤어요' }),
         h('p', { className: 'help', text: '결과에서 스코어보드와 장면별 기록을 보고, 고칠 공이 있으면 눌러서 고칠 수 있어요.' }),
         h('div', { className: 'confirm-buttons' }, [
-          h('button', { className: 'secondary', text: GAME_OVER_LABEL.resume, onClick: actions.openScene }),
+          h('button', { className: 'secondary', text: GAME_OVER_LABEL.resume, onClick: actions.resumeGame }),
           h('button', { className: 'primary', text: GAME_OVER_LABEL.result, onClick: actions.openScoreboard }),
         ]),
       ]),
@@ -508,6 +526,19 @@ function controls(model: InputModel, actions: InputActions): HTMLElement {
   }
 
   if (draft) return h('div', { className: 'controls' }, [situationEditor(draft, actions)]);
+
+  if (model.confirmEnd) {
+    return h('div', { className: 'controls' }, [
+      h('section', { className: 'game-over' }, [
+        h('p', { className: 'section-title', text: '이 경기 기록을 마칠까요?' }),
+        h('p', { className: 'help', text: '마친 뒤에도 "다시 이어서 기록"으로 이어 갈 수 있어요.' }),
+        h('div', { className: 'confirm-buttons' }, [
+          h('button', { className: 'secondary', text: MINI_GAME_LABEL.keepGoing, onClick: () => actions.askEndGame(false) }),
+          h('button', { className: 'primary', text: SCENE_END_BUTTON.gameEnd, onClick: () => actions.scene.endGame?.() }),
+        ]),
+      ]),
+    ]);
+  }
 
 
   const detail = pitchDetailToggle(model.detailMode, actions.toggleDetail);

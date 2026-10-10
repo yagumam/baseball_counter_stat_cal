@@ -17,6 +17,8 @@ export interface AnalysisActions {
   /** 고를 수 있는 경기 [id, 이름] (최근 경기 먼저)와 지금 고른 경기 */
   readonly gameOptions: readonly [string, string][];
   readonly selectedGameId: string;
+  /** "전체"에서 뺀 경기 수 (미니게임·기타) */
+  readonly excludedGames: number;
 }
 
 /** 볼 경기를 고르는 목록. 휴대폰 기본 고르기 창이 떠서 키보드가 올라오지 않는다. */
@@ -57,6 +59,9 @@ export function analysisHeader(totalGames: number, scope: AnalysisScope, tab: An
       'scope-tabs',
     ),
     scope === 'game' ? gamePicker(actions) : null,
+    scope === 'all' && actions.excludedGames > 0
+      ? h('p', { className: 'help', text: `미니게임 · 기타 ${actions.excludedGames}경기는 빼고 셌어요.` })
+      : null,
     segmented<AnalysisTab>(
       [
         ['result', '결과'],

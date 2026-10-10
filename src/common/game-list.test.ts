@@ -10,7 +10,7 @@ function game(date: string, opponent: string, gameType: GameType = 'practice'): 
 const a = game('2026-09-01', '서울 가초', 'tournament');
 const b = game('2026-10-05', '부산 나초');
 const c = game('2026-09-20', '');
-const d = game('2026-08-10', '서울 가초', 'league');
+const d = game('2026-08-10', '서울 가초', 'mini');
 const opponents = (games: Game[]) => games.map((g) => gameInfo(g).opponent);
 
 describe('경기 정렬', () => {
@@ -43,7 +43,7 @@ describe('경기 찾기', () => {
   });
 
   it('경기 구분 단추와 말을 함께 쓰면 둘 다 맞는 경기만', () => {
-    expect(filterGames([a, b, c, d], '', 'league')).toEqual([d]);
+    expect(filterGames([a, b, c, d], '', 'mini')).toEqual([d]);
     expect(filterGames([a, b, c, d], '서울', 'tournament')).toEqual([a]);
     expect(filterGames([a, b, c, d], '대회', 'all')).toEqual([a]);
   });

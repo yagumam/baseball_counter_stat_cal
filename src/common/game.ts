@@ -20,6 +20,7 @@ import {
   Venue,
   BatterHand,
   isLogEvent,
+  STATS_EXCLUDED_GAME_TYPES,
 } from './events';
 
 /** 데모에는 로그인이 없으므로 작성자를 고정한다. 공증 기능 단계에서 실제 사용자로 바꾼다. */
@@ -66,9 +67,15 @@ export function ourTeamLabel(info: Pick<GameInfo, 'ourTeam'>): string {
 export const GAME_TYPE_LABEL: Record<GameType, string> = {
   practice: '연습경기',
   tournament: '대회경기',
-  league: '리그경기',
+  mini: '미니게임',
   other: '기타',
+  league: '리그경기',
 };
+
+/** 통계(분석 "전체")에 넣는 경기인지. 미니게임·기타는 뺀다. */
+export function countsInStats(game: Game): boolean {
+  return !STATS_EXCLUDED_GAME_TYPES.includes(gameInfo(game).gameType);
+}
 
 export function createId(): string {
   return crypto.randomUUID();

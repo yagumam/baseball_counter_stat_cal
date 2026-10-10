@@ -8,6 +8,9 @@
 // - 수비: 투수 장면처럼 상대 타자들의 타석을 기록한다(투구는 우리 팀 다른 투수). 아이가 처리한 플레이는
 //   투구·주자 기록에 붙은 수비 기록(자살·보살·실책)으로 남는다.
 // 공격 장면(타자·주자)은 아이가 아웃되거나 득점하거나 3아웃이 되면 끝난다.
+//
+// 미니게임(아이와 1:1): 등장 기록 없이 1회초부터 초·말마다 장면이 저절로 열린다.
+// 상대 공격이면 아이가 투수, 우리 공격이면 아이가 매번 타자다. 3아웃이면 다음 초·말로 넘어간다.
 
 import {
   BALLS_FOR_WALK,
@@ -51,7 +54,7 @@ import {
   Role,
   Team,
 } from './events';
-import { halfForRole, isOffenseRole } from './innings';
+import { halfForRole, isOffenseRole, offensiveHalf } from './innings';
 
 export type PlateAppearanceOutcome =
   | 'walk'
@@ -188,6 +191,8 @@ export interface GameReplay {
 
 export interface ReplaySettings {
   readonly battingFirst: Team;
+  /** 미니게임이면 장면 설정 없이 1회초부터 초·말마다 장면을 연다. */
+  readonly miniGame?: boolean;
 }
 
 export function halfKey(inning: number, half: Half): string {
@@ -271,6 +276,8 @@ interface OpenScene {
   lastClosed: MutablePlateAppearance | null;
   /** 방금 실책(실책 출루·실책 진루)이 있었는지. 다음 공·주자 상황 전까지 고친 점수는 비자책점이다. */
   errorPending: boolean;
+  /** 미니게임 공격 장면: 타자는 늘 아이이고, 나가 있는 주자는 아이로 따로 세지 않는다. */
+  childAlwaysBats: boolean;
 }
 
 type Totals = { runs: number; hits: number; errors: number };
@@ -281,11 +288,15 @@ function clampCount(balls: number, strikes: number): Count {
 
 export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySettings): GameReplay {
   const { battingFirst } = settings;
+  const miniGame = settings.miniGame === true;
   const pas: MutablePlateAppearance[] = [];
   const scenes: MutableScene[] = [];
   const runnerEvents: RunnerEvent[] = [];
   const halves = new Map<string, Totals>();
   let scene: OpenScene | null = null;
+  let gameEnded = false;
+  /** 미니게임에서 다음에 저절로 열 초·말. 장면이 진행 중이거나 열 필요가 없으면 null */
+  let nextMiniHalf: { inning: number; half: Half } | null = miniGame ? { inning: 1, half: 'top' } : null;
 
   const totals = (s: OpenScene): Totals => {
     const key = halfKey(s.inning, s.half);
@@ -401,10 +412,15 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     if (childBaseOf(s.runners) === null) endScene(s, 'childDone');
   };
 
-  /** 3아웃 처리. 수비 장면은 다음 이닝으로 이어지고, 공격 장면은 끝난다. */
+  /** 3아웃 처리. 수비 장면은 다음 이닝으로 이어지고, 공격 장면은 끝난다. 미니게임은 다음 초·말 장면으로 넘어간다. */
   const endHalfIfOver = (s: OpenScene): void => {
     if (scene !== s || s.outs < OUTS_PER_INNING) return;
     if (started(s.current)) closePa(s, 'inningEnded', null);
+    if (miniGame) {
+      endScene(s, 'halfOver');
+      nextMiniHalf = s.half === 'top' ? { inning: s.inning, half: 'bottom' } : { inning: s.inning + 1, half: 'top' };
+      return;
+    }
     if (isOffenseRole(s.role)) {
       const childBase = childBaseOf(s.runners);
       if (childBase !== null) childEvent(s, 'stranded', childBase);
@@ -417,40 +433,70 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     s.current = openPa(s);
   };
 
-  const startScene = (event: AppearanceEvent): void => {
-    if (scene) endScene(scene, 'next');
-    const sceneHalf = halfForRole(event.role, battingFirst);
-    const childBase = event.role === 'runner' ? (event.childBase ?? 0) : null;
-    const bases: [boolean, boolean, boolean] = [event.bases[0], event.bases[1], event.bases[2]];
-    if (childBase !== null) bases[childBase] = true;
-    const count = clampCount(event.balls, event.strikes);
-    const record: MutableScene = {
-      id: event.id,
-      role: event.role,
-      inning: event.inning,
-      half: sceneHalf,
-      outs: event.outs,
-      bases,
-      count,
-      childBase,
-      position: event.position ?? null,
-      endedBy: null,
-    };
+  const openScene = (record: MutableScene, childAlwaysBats: boolean): void => {
     scenes.push(record);
     const s: OpenScene = {
       record,
-      role: event.role,
-      inning: event.inning,
-      half: sceneHalf,
-      outs: Math.min(event.outs, OUTS_PER_INNING - 1),
-      runners: fromBases(bases, childBase),
+      role: record.role,
+      inning: record.inning,
+      half: record.half,
+      outs: Math.min(record.outs, OUTS_PER_INNING - 1),
+      runners: fromBases(record.bases, record.childBase),
       current: null,
-      childBatting: event.role === 'batter',
+      childBatting: record.role === 'batter',
       lastClosed: null,
       errorPending: false,
+      childAlwaysBats,
     };
-    s.current = openPa(s, count);
+    s.current = openPa(s, record.count);
     scene = s;
+  };
+
+  const startScene = (event: AppearanceEvent): void => {
+    if (scene) endScene(scene, 'next');
+    nextMiniHalf = null;
+    const childBase = event.role === 'runner' ? (event.childBase ?? 0) : null;
+    const bases: [boolean, boolean, boolean] = [event.bases[0], event.bases[1], event.bases[2]];
+    if (childBase !== null) bases[childBase] = true;
+    openScene(
+      {
+        id: event.id,
+        role: event.role,
+        inning: event.inning,
+        half: halfForRole(event.role, battingFirst),
+        outs: event.outs,
+        bases,
+        count: clampCount(event.balls, event.strikes),
+        childBase,
+        position: event.position ?? null,
+        endedBy: null,
+      },
+      false,
+    );
+  };
+
+  /** 미니게임: 진행 중인 장면이 없으면 다음 초·말 장면을 연다. 우리 공격이면 아이가 타자, 상대 공격이면 투수. */
+  const openMiniSceneIfNeeded = (): void => {
+    if (scene || !nextMiniHalf || gameEnded) return;
+    const { inning, half } = nextMiniHalf;
+    nextMiniHalf = null;
+    const role: Role = half === offensiveHalf(battingFirst) ? 'batter' : 'pitcher';
+    openScene(
+      {
+        // 등장 기록이 없으므로 초·말과 순서로 장면 id를 만든다.
+        id: `mini-${halfKey(inning, half)}-${scenes.length + 1}`,
+        role,
+        inning,
+        half,
+        outs: 0,
+        bases: [false, false, false],
+        count: FIRST_PITCH_COUNT,
+        childBase: null,
+        position: null,
+        endedBy: null,
+      },
+      role === 'batter',
+    );
   };
 
   const onPitch = (s: OpenScene, pa: OpenPlateAppearance, event: PitchEvent): void => {
@@ -466,7 +512,8 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
       endIfChildDone(s);
       return;
     }
-    const batterIsChild = pa.actor === 'child';
+    // 미니게임은 아이가 매번 치므로, 나간 주자를 아이로 표시하지 않는다.
+    const batterIsChild = pa.actor === 'child' && !s.childAlwaysBats;
     const runsBefore = pa.runs;
     switch (applied.outcome) {
       case 'walk':
@@ -599,7 +646,6 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     s.current.batterGrade = event.grade ?? null;
   };
 
-  let gameEnded = false;
   for (const event of events) {
     if (event.kind === 'appearance') {
       gameEnded = false;
@@ -611,6 +657,7 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
       gameEnded = true;
       continue;
     }
+    openMiniSceneIfNeeded();
     // scene은 위의 함수들 안에서 바뀌므로 타입을 직접 밝힌다.
     const s = scene as OpenScene | null;
     if (!s) continue;
@@ -631,6 +678,7 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     else onPlay(s, s.current, event);
   }
 
+  openMiniSceneIfNeeded();
   const active = scene as OpenScene | null;
   if (active?.current && started(active.current)) pas.push(toRecord(active.current, null, null));
 
