@@ -128,8 +128,8 @@ export const GAME_TYPES: readonly GameType[] = ['practice', 'tournament', 'mini'
 /** 저장된 기록에 있을 수 있는 경기 구분 (예전 리그경기 포함) */
 export const STORED_GAME_TYPES: readonly GameType[] = [...GAME_TYPES, 'league'];
 
-/** 통계(분석 "전체")에서 빼는 경기 구분: 재미로 한 미니게임과 기타 */
-export const STATS_EXCLUDED_GAME_TYPES: readonly GameType[] = ['mini', 'other'];
+/** 분석 "전체"에서 처음 골라 두는 경기 구분. 재미로 한 미니게임과 기타는 빼 두고, 사용자가 켜고 끌 수 있다. */
+export const DEFAULT_ANALYSIS_GAME_TYPES: readonly GameType[] = ['practice', 'tournament', 'league'];
 
 export type Team = 'us' | 'them';
 

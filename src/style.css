@@ -739,6 +739,16 @@ button:focus-visible {
   overflow-x: auto;
 }
 
+/* 분석 "전체"의 경기 구분 고르기 (여러 개) */
+.type-toggles {
+  display: grid;
+  gap: 4px;
+}
+
+.type-toggles .quick-chips {
+  margin-top: 0;
+}
+
 /* 경기 목록 · 경기 정보 */
 .games {
   display: grid;
@@ -756,6 +766,20 @@ button:focus-visible {
 
 .game-card.current {
   border: 2px solid var(--primary);
+}
+
+/* 카드를 눌러 고른 경기 (분석 "선택한 경기") */
+.game-card {
+  cursor: pointer;
+}
+
+.game-card.picked {
+  background: var(--primary-soft);
+}
+
+.type-chip.picked {
+  background: var(--primary);
+  color: var(--on-color);
 }
 
 .game-card-head {

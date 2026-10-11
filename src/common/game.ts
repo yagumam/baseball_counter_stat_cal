@@ -20,7 +20,6 @@ import {
   Venue,
   BatterHand,
   isLogEvent,
-  STATS_EXCLUDED_GAME_TYPES,
 } from './events';
 
 /** 데모에는 로그인이 없으므로 작성자를 고정한다. 공증 기능 단계에서 실제 사용자로 바꾼다. */
@@ -74,9 +73,9 @@ export const GAME_TYPE_LABEL: Record<GameType, string> = {
   league: '리그경기',
 };
 
-/** 통계(분석 "전체")에 넣는 경기인지. 미니게임·기타는 뺀다. */
-export function countsInStats(game: Game): boolean {
-  return !STATS_EXCLUDED_GAME_TYPES.includes(gameInfo(game).gameType);
+/** 고른 경기 구분의 경기만 (분석 "전체") */
+export function gamesOfTypes(games: readonly Game[], types: readonly GameType[]): Game[] {
+  return games.filter((g) => types.includes(gameInfo(g).gameType));
 }
 
 export function createId(): string {
@@ -307,6 +306,11 @@ export function gameShortLabel(game: Game): string {
   const info = gameInfo(game);
   const date = dateLabel(info.date).replace(/ \(.\)$/, '');
   return info.opponent.trim() ? `${date} ${info.opponent.trim()}전` : date;
+}
+
+/** 분석 "볼 경기" 목록의 이름: 날짜·상대팀에 경기 구분을 붙인다. 예: "10월 4일 ○○전 · 대회경기" */
+export function gamePickLabel(game: Game): string {
+  return `${gameShortLabel(game)} · ${GAME_TYPE_LABEL[gameInfo(game).gameType]}`;
 }
 
 export function isGame(value: unknown): value is Game {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Game, countsInStats, createGame, gameInfo, isGame, recentOpponents, recentPlaces, shiftDate, upgradeLegacyGame } from './game';
-import { GameType } from './events';
+import { Game, createGame, gamePickLabel, gamesOfTypes, gameInfo, isGame, recentOpponents, recentPlaces, shiftDate, upgradeLegacyGame } from './game';
+import { DEFAULT_ANALYSIS_GAME_TYPES, GameType } from './events';
 import { LogEvent } from './events';
 
 const legacyPitch: LogEvent = { kind: 'pitch', id: 'p1', createdAt: '2026-10-01T00:00:00.000Z', author: '나', result: 'ball' };
@@ -82,14 +82,22 @@ describe('아웃 종류 저장 검사', () => {
 });
 
 describe('경기 구분과 통계', () => {
-  const ofType = (gameType: GameType) => createGame({ date: '2026-10-10', opponent: '', gameType, battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
+  const ofType = (gameType: GameType, opponent = '') =>
+    createGame({ date: '2026-10-10', opponent, gameType, battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
 
-  it('미니게임 · 기타는 통계에서 빼고, 연습 · 대회 · 예전 리그경기는 넣는다', () => {
-    expect(countsInStats(ofType('mini'))).toBe(false);
-    expect(countsInStats(ofType('other'))).toBe(false);
-    expect(countsInStats(ofType('practice'))).toBe(true);
-    expect(countsInStats(ofType('tournament'))).toBe(true);
-    expect(countsInStats(ofType('league'))).toBe(true);
+  it('처음에는 미니게임 · 기타를 빼고, 연습 · 대회 · 예전 리그경기를 센다', () => {
+    const [mini, other, practice, tournament, league] = (['mini', 'other', 'practice', 'tournament', 'league'] as const).map((t) => ofType(t));
+    expect(gamesOfTypes([mini, other, practice, tournament, league], DEFAULT_ANALYSIS_GAME_TYPES)).toEqual([practice, tournament, league]);
+  });
+
+  it('경기 구분을 여러 개 고르면 그 경기들만, 하나도 안 고르면 없음', () => {
+    const [mini, practice, tournament] = (['mini', 'practice', 'tournament'] as const).map((t) => ofType(t));
+    expect(gamesOfTypes([mini, practice, tournament], ['mini', 'tournament'])).toEqual([mini, tournament]);
+    expect(gamesOfTypes([mini, practice, tournament], [])).toEqual([]);
+  });
+
+  it('볼 경기 이름에 경기 구분이 붙는다', () => {
+    expect(gamePickLabel(ofType('tournament', '가초'))).toBe('10월 10일 가초전 · 대회경기');
   });
 
   it('예전 리그경기 기록도 그대로 읽힌다', () => {

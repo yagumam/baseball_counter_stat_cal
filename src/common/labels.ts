@@ -43,6 +43,8 @@ export const GAME_CARD_LABEL = {
   record: '이 경기 기록하기',
   edit: '정보 고치기',
   delete: '삭제',
+  /** 카드를 눌러 고른 경기에 붙는 표시 */
+  picked: '분석에서 볼 경기',
 } as const;
 
 /** 스코어보드 합계 칸 */
