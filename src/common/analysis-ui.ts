@@ -5,6 +5,7 @@ import { Count, countLabel } from './count';
 import { h, segmented } from './dom';
 import { DrawPoint, LegendItem, chartCard, fieldSvg, zoneSvg } from './field-view';
 import { ANALYSIS_SCOPE_LABEL } from './labels';
+import { GameType } from './events';
 
 export type AnalysisTab = 'result' | 'process';
 export type AnalysisScope = 'game' | 'all';
@@ -17,8 +18,35 @@ export interface AnalysisActions {
   /** 고를 수 있는 경기 [id, 이름] (최근 경기 먼저)와 지금 고른 경기 */
   readonly gameOptions: readonly [string, string][];
   readonly selectedGameId: string;
-  /** "전체"에서 뺀 경기 수 (미니게임·기타) */
-  readonly excludedGames: number;
+  /** "전체"에서 고를 수 있는 경기 구분 [구분, 이름, 경기 수] */
+  readonly typeOptions: readonly (readonly [GameType, string, number])[];
+  /** "전체"에서 고른 경기 구분 (여러 개) */
+  readonly selectedTypes: readonly GameType[];
+  /** 경기 구분 하나를 켜거나 끈다 */
+  toggleType: (type: GameType) => void;
+}
+
+/** "전체"에서 셀 경기 구분 고르기. 여러 개를 함께 켤 수 있다. */
+function typeToggles(totalGames: number, actions: AnalysisActions): HTMLElement {
+  return h('div', { className: 'type-toggles' }, [
+    h(
+      'div',
+      { className: 'quick-chips' },
+      actions.typeOptions.map(([type, label, count]) => {
+        const on = actions.selectedTypes.includes(type);
+        return h('button', {
+          className: on ? 'active' : '',
+          text: `${on ? '✓ ' : ''}${label} ${count}`,
+          attrs: { type: 'button', 'aria-pressed': String(on) },
+          onClick: () => actions.toggleType(type),
+        });
+      }),
+    ),
+    h('p', {
+      className: 'help',
+      text: actions.selectedTypes.length === 0 ? '셀 경기 구분을 하나 이상 골라 주세요.' : `고른 경기 구분 ${totalGames}경기를 모아 셌어요. 눌러서 넣고 빼면 다음에도 기억해요.`,
+    }),
+  ]);
 }
 
 /** 볼 경기를 고르는 목록. 휴대폰 기본 고르기 창이 떠서 키보드가 올라오지 않는다. */
@@ -52,16 +80,14 @@ export function analysisHeader(totalGames: number, scope: AnalysisScope, tab: An
     segmented<AnalysisScope>(
       [
         ['game', ANALYSIS_SCOPE_LABEL.game],
-        ['all', `${ANALYSIS_SCOPE_LABEL.all} ${totalGames}경기`],
+        ['all', ANALYSIS_SCOPE_LABEL.all],
       ],
       scope,
       actions.scope,
       'scope-tabs',
     ),
     scope === 'game' ? gamePicker(actions) : null,
-    scope === 'all' && actions.excludedGames > 0
-      ? h('p', { className: 'help', text: `미니게임 · 기타 ${actions.excludedGames}경기는 빼고 셌어요.` })
-      : null,
+    scope === 'all' ? typeToggles(totalGames, actions) : null,
     segmented<AnalysisTab>(
       [
         ['result', '결과'],

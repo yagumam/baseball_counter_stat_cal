@@ -5,7 +5,7 @@
 import { batterAnalysisView } from './batter/analysis-view';
 import { AnalysisScope, AnalysisTab } from './common/analysis-ui';
 import { h, segmented } from './common/dom';
-import { BaseIndex, BatterHand, FieldingCredit, HitType, OutType, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
+import { BaseIndex, BatterHand, FieldingCredit, GAME_TYPES, GameType, HitType, OutType, PLACE_MAX_LENGTH, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
 import { outTypeOptions } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
@@ -16,10 +16,12 @@ import { EMPTY_PITCH_DETAIL, FieldDraft, PitchDetail, PitchSheet, isBattedResult
 import {
   Hand,
   OrientationMode,
+  loadAnalysisTypes,
   loadChildBatterHand,
   loadHand,
   loadOrientation,
   loadTeamName,
+  saveAnalysisTypes,
   saveChildBatterHand,
   saveHand,
   saveOrientation,
@@ -46,8 +48,10 @@ import {
   addVoid,
   addEdit,
   addDetailEdit,
-  countsInStats,
+  GAME_TYPE_LABEL,
   createGame,
+  gamePickLabel,
+  gamesOfTypes,
   defaultVenue,
   gameInfo,
   gameShortLabel,
@@ -149,6 +153,8 @@ interface State {
   lastBackupAt: string | null;
   /** 미니게임에서 경기 끝을 물어보는 중인지 */
   confirmEnd: boolean;
+  /** 분석 "전체"에서 셀 경기 구분 (여러 개) */
+  analysisTypes: GameType[];
 }
 
 const DETAIL_MODE_KEY = 'baseball-counter.pitch-detail';
@@ -201,7 +207,7 @@ const BLOCKED_ADVANCE_REASON = '다음 베이스에 주자가 있어요. 주자�
 function newGameForm(teamName: string): GameForm {
   return {
     gameId: null,
-    info: { date: today(), opponent: '', gameType: 'practice', battingFirst: 'them', venue: defaultVenue('them'), ourTeam: teamName },
+    info: { date: today(), opponent: '', gameType: 'practice', battingFirst: 'them', venue: defaultVenue('them'), ourTeam: teamName, place: '' },
     error: null,
   };
 }
@@ -212,6 +218,7 @@ export function validateInfo(info: GameInfo): string | null {
   if (!DATE_PATTERN.test(info.date)) return '경기 날짜를 골라 주세요.';
   if (info.opponent.trim().length > OPPONENT_MAX_LENGTH) return `상대팀 이름은 ${OPPONENT_MAX_LENGTH}자까지 넣을 수 있어요.`;
   if (info.ourTeam.trim().length > TEAM_NAME_MAX_LENGTH) return `우리 팀 이름은 ${TEAM_NAME_MAX_LENGTH}자까지 넣을 수 있어요.`;
+  if (info.place.trim().length > PLACE_MAX_LENGTH) return `장소는 ${PLACE_MAX_LENGTH}자까지 넣을 수 있어요.`;
   return null;
 }
 
@@ -272,6 +279,7 @@ export function mountApp(root: HTMLElement): void {
     analysisKind: 'pitcher',
     lastBackupAt: loadLastBackup(),
     confirmEnd: false,
+    analysisTypes: loadAnalysisTypes(),
   };
 
   const currentGame = (): Game | undefined => state.games.find((g) => g.id === state.currentGameId);
@@ -721,6 +729,12 @@ export function mountApp(root: HTMLElement): void {
       state.currentGameId = id;
       go('input');
     },
+    // 카드를 누르면 분석 "선택한 경기"에서 그 경기를 본다.
+    pick: (id: string) => {
+      state.analysisGameId = id;
+      state.analysisScope = 'game';
+      render();
+    },
     openResult: (id: string) => {
       state.resultGameId = id;
       render();
@@ -799,18 +813,27 @@ export function mountApp(root: HTMLElement): void {
       state.analysisGameId = id;
       render();
     },
+    toggleType: (type: GameType) => {
+      state.analysisTypes = state.analysisTypes.includes(type) ? state.analysisTypes.filter((t) => t !== type) : [...state.analysisTypes, type];
+      saveAnalysisTypes(state.analysisTypes);
+      render();
+    },
+  };
+
+  /** "전체"에서 고를 수 있는 경기 구분. 예전 리그경기는 그런 경기가 있을 때만 보여준다. */
+  const typeOptions = (): (readonly [GameType, string, number])[] => {
+    const options = [...GAME_TYPES, 'league' as const].map((t) => [t, GAME_TYPE_LABEL[t], gamesOfTypes(state.games, [t]).length] as const);
+    return options.filter(([t, , count]) => t !== 'league' || count > 0);
   };
 
   /** 분석 "선택한 경기": 고른 경기가 없으면 지금 기록 중인 경기 */
   const analysisGame = (fallback: Game): Game => state.games.find((g) => g.id === state.analysisGameId) ?? fallback;
 
-  // "전체"는 미니게임·기타를 빼고 센다. "선택한 경기"는 고른 경기 하나를 그대로 보여준다.
-  const statsGames = (): Game[] => state.games.filter(countsInStats);
+  // "전체"는 고른 경기 구분의 경기만 센다. "선택한 경기"는 고른 경기 하나를 그대로 보여준다.
+  const statsGames = (): Game[] => gamesOfTypes(state.games, state.analysisTypes);
 
-  const scopedGames = (game: Game): GameForStats[] =>
-    state.analysisScope === 'game'
-      ? [{ label: gameShortLabel(game), replay: replayOf(game) }]
-      : statsGames().map((g) => ({ label: gameShortLabel(g), replay: replayOf(g) }));
+  const scopedGames = (game: Game, games: readonly Game[]): GameForStats[] =>
+    (state.analysisScope === 'game' ? [game] : games).map((g) => ({ label: gameShortLabel(g), replay: replayOf(g) }));
 
   const helpActions = {
     close: () => {
@@ -944,7 +967,7 @@ export function mountApp(root: HTMLElement): void {
       );
     }
     if (!game || state.form || state.tab === 'games') {
-      return gamesView(state.games, state.currentGameId, state.form, state.gameList, state.deletingId, gamesActions, replayOf, childSummary);
+      return gamesView(state.games, state.currentGameId, state.analysisGameId ?? state.currentGameId, state.form, state.gameList, state.deletingId, gamesActions, replayOf, childSummary);
     }
     const info = gameInfo(game);
     const replay = replayOf(game);
@@ -976,6 +999,7 @@ export function mountApp(root: HTMLElement): void {
         );
       case 'analysis': {
         const chosen = analysisGame(game);
+        const counted = statsGames();
         return h('div', { className: 'analysis-page' }, [
           segmented<AnalysisKind>(
             ANALYSIS_KINDS.map((k) => [k, ANALYSIS_KIND_LABEL[k]]),
@@ -986,10 +1010,11 @@ export function mountApp(root: HTMLElement): void {
             },
             'kind-tabs',
           ),
-          analysisView(state.analysisKind)(scopedGames(chosen), statsGames().length, state.analysisScope, state.analysisTab, {
+          analysisView(state.analysisKind)(scopedGames(chosen, counted), counted.length, state.analysisScope, state.analysisTab, {
             ...analysisActions,
-            excludedGames: state.games.length - statsGames().length,
-            gameOptions: sortGames(state.games, 'newest').map((g) => [g.id, gameShortLabel(g)]),
+            typeOptions: typeOptions(),
+            selectedTypes: state.analysisTypes,
+            gameOptions: sortGames(state.games, 'newest').map((g) => [g.id, gamePickLabel(g)]),
             selectedGameId: chosen.id,
           }),
         ]);

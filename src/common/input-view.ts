@@ -147,7 +147,7 @@ function workloadPill(replay: GameReplay, state: ActiveState): HTMLElement | nul
 
 const END_REASON = { exit: '교체 아웃', next: '다음 장면으로', childDone: '아이 차례 끝', halfOver: '3아웃', gameEnd: '경기 끝' } as const;
 
-function message(replay: GameReplay): string {
+export function boardMessage(replay: GameReplay, miniGame: boolean): string {
   const state = replay.state;
   const lastScene = replay.scenes[replay.scenes.length - 1];
   if (!state) {
@@ -161,8 +161,7 @@ function message(replay: GameReplay): string {
   const pas = replay.plateAppearances.filter((pa) => pa.sceneId === state.sceneId);
   const last = pas[pas.length - 1];
   // 미니게임은 3아웃이면 다음 초·말 장면이 저절로 열린다.
-  const previous = replay.scenes[replay.scenes.length - 2];
-  if (!last && previous?.endedBy === 'halfOver' && lastScene?.id === state.sceneId) {
+  if (!last && miniGame && replay.scenes.length > 1) {
     return `3아웃! 이제 ${halfInningLabel(state.inning, state.half)} · 아이가 ${roleText(state)}`;
   }
   if (!last) return state.role === 'runner' ? '아이에게 일어난 일이나 지금 타자의 공을 기록하세요.' : '공마다 결과 버튼을 누르세요.';
@@ -184,7 +183,7 @@ function board(model: InputModel, actions: InputActions): HTMLElement {
   // 미니게임은 장면 설정이 없으므로 그 자리에 경기 끝 단추를 둔다. (진행 중일 때만)
   const sceneButton =
     info.gameType === 'mini' && state
-      ? h('button', { className: 'board-scene', text: MINI_GAME_LABEL.end, onClick: () => actions.askEndGame(true) })
+      ? h('button', { className: 'board-scene', text: `${MINI_GAME_LABEL.end} ›`, onClick: () => actions.askEndGame(true) })
       : h('button', { className: 'board-scene', text: '장면 바꾸기 ›', onClick: actions.openScene });
   const head = h('div', { className: 'board-head' }, [
     h('button', { className: 'board-game', onClick: actions.openGames }, [`${dateLabel(info.date)} · ${opponentLabel(info.opponent)}`]),
@@ -200,7 +199,7 @@ function board(model: InputModel, actions: InputActions): HTMLElement {
     return h('div', { className: 'board' }, [
       head,
       h('div', { className: 'board-stats' }, [scorePill]),
-      h('p', { className: 'message', text: message(replay), attrs: { 'aria-live': 'polite' } }),
+      h('p', { className: 'message', text: boardMessage(replay, info.gameType === 'mini'), attrs: { 'aria-live': 'polite' } }),
     ]);
   }
 
@@ -229,7 +228,7 @@ function board(model: InputModel, actions: InputActions): HTMLElement {
     ]),
     h('div', { className: 'board-stats' }, [workloadPill(replay, state), scorePill]),
     // 장면 중에는 아래 "↶ 취소" 단추가 방금 기록을 보여 주므로, 높이가 낮은 화면에서는 CSS로 숨긴다.
-    h('p', { className: 'message live', text: message(replay), attrs: { 'aria-live': 'polite' } }),
+    h('p', { className: 'message live', text: boardMessage(replay, info.gameType === 'mini'), attrs: { 'aria-live': 'polite' } }),
     boardMore(model),
   ]);
 }
@@ -539,7 +538,6 @@ function controls(model: InputModel, actions: InputActions): HTMLElement {
       ]),
     ]);
   }
-
 
   const detail = pitchDetailToggle(model.detailMode, actions.toggleDetail);
 

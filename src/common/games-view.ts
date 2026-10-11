@@ -1,7 +1,7 @@
 // 경기 목록과 경기 정보 입력 화면 (공통)
 
 import { h } from './dom';
-import { GAME_TYPES, GameType, TEAM_NAME_MAX_LENGTH, Team, Venue } from './events';
+import { GAME_TYPES, GameType, PLACE_MAX_LENGTH, TEAM_NAME_MAX_LENGTH, Team, Venue } from './events';
 import {
   GAME_TYPE_LABEL,
   Game,
@@ -16,6 +16,7 @@ import {
   orderLabel,
   ourTeamLabel,
   recentOpponents,
+  recentPlaces,
   shiftDate,
   today,
 } from './game';
@@ -35,6 +36,8 @@ export interface GameForm {
 
 export interface GamesActions {
   select: (id: string) => void;
+  /** 카드를 눌러 분석 "선택한 경기"에서 볼 경기로 고른다 */
+  pick: (id: string) => void;
   openResult: (id: string) => void;
   /** 지울지 묻는 창을 연다 (null이면 닫기) */
   askDelete: (id: string | null) => void;
@@ -79,7 +82,7 @@ function picker<T extends string>(
   return { element: h('div', { className }, buttons), show };
 }
 
-function formView(form: GameForm, hasGames: boolean, opponents: readonly string[], actions: GamesActions): HTMLElement {
+function formView(form: GameForm, hasGames: boolean, opponents: readonly string[], places: readonly string[], actions: GamesActions): HTMLElement {
   // 입력할 때마다 다시 그리면 키보드가 닫히므로, 값은 그때그때 담아 두고 저장할 때 한 번에 쓴다.
   let current = form;
   const update = (info: Partial<GameInfo>): void => {
@@ -102,6 +105,19 @@ function formView(form: GameForm, hasGames: boolean, opponents: readonly string[
     },
   });
   opponentInput.addEventListener('input', () => update({ opponent: opponentInput.value }));
+
+  const placeInput = h('input', {
+    attrs: {
+      id: 'game-place',
+      type: 'text',
+      value: form.info.place,
+      placeholder: '예: ○○초 운동장 (비워도 돼요)',
+      autocomplete: 'off',
+      enterkeyhint: 'done',
+      maxlength: String(PLACE_MAX_LENGTH),
+    },
+  });
+  placeInput.addEventListener('input', () => update({ place: placeInput.value }));
 
   // 우리 팀 이름은 설정에서 정한 값이 미리 들어 있어 보통은 손대지 않는다.
   const teamInput = h('input', {
@@ -163,6 +179,17 @@ function formView(form: GameForm, hasGames: boolean, opponents: readonly string[
           },
         )
       : null;
+  const placeChips =
+    places.length > 0
+      ? quickChips(
+          places.map((name) => [name, name] as [string, string]),
+          form.info.place.trim(),
+          (name) => {
+            placeInput.value = name;
+            update({ place: name });
+          },
+        )
+      : null;
 
   return h('section', { className: 'game-form' }, [
     h('h2', { text: form.gameId ? '경기 정보 고치기' : '새 경기' }),
@@ -172,6 +199,9 @@ function formView(form: GameForm, hasGames: boolean, opponents: readonly string[
     h('label', { attrs: { for: 'game-opponent' } }, ['상대팀', opponentInput]),
     opponentChips ? h('p', { className: 'help quick-help', text: '예전 상대팀을 누르면 바로 들어가요' }) : null,
     opponentChips,
+    h('label', { attrs: { for: 'game-place' } }, ['장소', placeInput]),
+    placeChips ? h('p', { className: 'help quick-help', text: '예전 장소를 누르면 바로 들어가요' }) : null,
+    placeChips,
     h('div', { className: 'field' }, [
       h('span', { text: '경기 구분' }),
       picker<GameType>(GAME_TYPES.map((t) => [t, GAME_TYPE_LABEL[t]]), form.info.gameType, (t) => update({ gameType: t }), 'type-picker one-row').element,
@@ -215,31 +245,46 @@ function quickChips(options: readonly [string, string][], selected: string, onPi
   return h('div', { className: 'quick-chips' }, buttons);
 }
 
-function gameCard(game: Game, isCurrent: boolean, replay: GameReplay, summary: readonly string[], actions: GamesActions): HTMLElement {
+interface CardMarks {
+  /** 지금 기록 중인 경기 */
+  readonly current: boolean;
+  /** 분석에서 볼 경기로 고른 경기 */
+  readonly picked: boolean;
+}
+
+function gameCard(game: Game, marks: CardMarks, replay: GameReplay, summary: readonly string[], actions: GamesActions): HTMLElement {
   const label = GAME_CARD_LABEL;
   const info = gameInfo(game);
   const pitched = replay.plateAppearances.filter((pa) => pa.fieldingPosition === 'pitcher');
   const pitches = pitched.reduce((n, pa) => n + pa.pitches.length, 0);
   const batted = replay.plateAppearances.filter((pa) => pa.actor === 'child' && pa.outcome !== null).length;
-  return h('article', { className: `game-card${isCurrent ? ' current' : ''}` }, [
+  const card = h('article', { className: `game-card${marks.current ? ' current' : ''}${marks.picked ? ' picked' : ''}`, attrs: { 'aria-pressed': String(marks.picked) } }, [
     h('div', { className: 'game-card-head' }, [
       h('h3', { text: dateLabel(info.date) }),
       h('span', { className: 'game-card-chips' }, [
+        marks.picked ? h('span', { className: 'type-chip picked', text: label.picked }) : null,
         replay.gameEnded ? h('span', { className: 'type-chip ended', text: '경기 끝' }) : null,
         h('span', { className: `type-chip ${info.gameType}`, text: GAME_TYPE_LABEL[info.gameType] }),
       ]),
     ]),
     h('p', { className: 'opponent', text: `${ourTeamLabel(info)} vs ${opponentLabel(info.opponent)} · ${orderLabel(info)}` }),
+    info.place.trim() ? h('p', { className: 'sub', text: `장소: ${info.place.trim()}` }) : null,
     summary.length > 0 ? h('p', { className: 'game-summary' }, summary.flatMap((line, i) => (i === 0 ? [line] : [h('br'), line]))) : null,
     h('p', { className: 'sub', text: `장면 ${replay.scenes.length} · 투구 ${pitches}개 · 타석 ${batted}` }),
     game.copiedFrom ? h('p', { className: 'sub', text: '백업에서 불러온 사본 (같은 경기가 다르게 기록되어 있어 따로 만듦)' }) : null,
     h('div', { className: 'game-card-buttons' }, [
       h('button', { className: 'primary', text: label.result, onClick: () => actions.openResult(game.id) }),
-      h('button', { className: 'secondary', text: isCurrent ? label.resume : label.record, onClick: () => actions.select(game.id) }),
+      h('button', { className: 'secondary', text: marks.current ? label.resume : label.record, onClick: () => actions.select(game.id) }),
       h('button', { className: 'secondary', text: label.edit, onClick: () => actions.openEdit(game) }),
       h('button', { className: 'secondary danger', text: label.delete, onClick: () => actions.askDelete(game.id) }),
     ]),
   ]);
+  // 카드의 빈 곳을 누르면 그 경기를 고른다. 카드 안 단추는 각자 할 일만 한다.
+  card.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('button')) return;
+    actions.pick(game.id);
+  });
+  return card;
 }
 
 /** 경기를 지우기 전에 한 번 더 묻는 창. 지우면 되돌릴 수 없다. (CLAUDE.md 2.8) */
@@ -289,9 +334,14 @@ function listControls(list: GameListView, onQuery: (query: string) => void, acti
   ]);
 }
 
+function countText(total: number, shown: number): string {
+  return shown === total ? `경기 ${total}개` : `경기 ${total}개 중 ${shown}개`;
+}
+
 export function gamesView(
   games: readonly Game[],
   currentGameId: string | null,
+  pickedGameId: string | null,
   form: GameForm | null,
   list: GameListView,
   deletingId: string | null,
@@ -300,7 +350,8 @@ export function gamesView(
   summaryOf: (games: readonly Game[]) => string[],
 ): HTMLElement {
   const deleting = games.find((g) => g.id === deletingId);
-  const card = (g: Game): HTMLElement => gameCard(g, g.id === currentGameId, replayOf(g), summaryOf([g]), actions);
+  const card = (g: Game): HTMLElement =>
+    gameCard(g, { current: g.id === currentGameId, picked: g.id === pickedGameId }, replayOf(g), summaryOf([g]), actions);
   const modeTabs =
     games.length > 0
       ? segmented<GameListView['mode']>(
@@ -313,7 +364,7 @@ export function gamesView(
           'kind-tabs',
         )
       : null;
-  if (form) return formView(form, games.length > 0, recentOpponents(games), actions);
+  if (form) return formView(form, games.length > 0, recentOpponents(games), recentPlaces(games), actions);
   if (list.mode === 'calendar' && games.length > 0) {
     return h('section', { className: 'games' }, [
       h('button', { className: 'primary new-game', text: '+ 새 경기', onClick: actions.openNew }),
@@ -326,7 +377,7 @@ export function gamesView(
   const showList = (query: string): void => {
     const shown = sortGames(filterGames(games, query, list.type), list.order);
     cards.replaceChildren(
-      h('p', { className: 'help list-count', text: shown.length === games.length ? `경기 ${games.length}개` : `경기 ${games.length}개 중 ${shown.length}개` }),
+      h('p', { className: 'help list-count', text: `${countText(games.length, shown.length)} · 카드를 누르면 분석에서 그 경기를 봐요` }),
       ...shown.map(card),
     );
     if (shown.length === 0 && games.length > 0) cards.append(h('p', { className: 'empty', text: '찾는 경기가 없어요. 찾는 말이나 경기 구분을 바꿔 보세요.' }));

@@ -4,7 +4,7 @@ import { backupJson } from './export';
 import { Game, addAppearance, addPitch, createGame } from './game';
 
 function startedGame(): Game {
-  const g = createGame({ date: '2026-10-05', opponent: '서울 ○○초', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '' });
+  const g = createGame({ date: '2026-10-05', opponent: '서울 ○○초', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
   return addAppearance(g, { role: 'pitcher', inning: 1, outs: 0, bases: [false, false, false], balls: 0, strikes: 0 });
 }
 

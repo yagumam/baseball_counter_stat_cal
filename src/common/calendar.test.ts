@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { gamesByDate, monthGrid, monthLabel, monthlyCounts, shiftMonth } from './calendar';
 import { createGame } from './game';
 
-const game = (date: string) => createGame({ date, opponent: '', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '' });
+const game = (date: string) => createGame({ date, opponent: '', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
 
 describe('달력', () => {
   it('달 옮기기: 해가 바뀌는 달 포함', () => {

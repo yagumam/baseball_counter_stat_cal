@@ -41,7 +41,7 @@ export function filterGames(games: readonly Game[], query: string, type: GameTyp
   return games.filter((game) => {
     const info = gameInfo(game);
     if (type !== 'all' && info.gameType !== type) return false;
-    const haystack = normalize([info.opponent, info.date, dateLabel(info.date), GAME_TYPE_LABEL[info.gameType]].join(' '));
+    const haystack = normalize([info.opponent, info.place, info.date, dateLabel(info.date), GAME_TYPE_LABEL[info.gameType]].join(' '));
     return words.every((w) => haystack.includes(w));
   });
 }

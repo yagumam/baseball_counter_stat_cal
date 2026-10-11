@@ -43,6 +43,8 @@ export const GAME_CARD_LABEL = {
   record: '이 경기 기록하기',
   edit: '정보 고치기',
   delete: '삭제',
+  /** 카드를 눌러 고른 경기에 붙는 표시 */
+  picked: '분석에서 볼 경기',
 } as const;
 
 /** 스코어보드 합계 칸 */
@@ -270,7 +272,7 @@ export const GAME_OVER_LABEL = { resume: '다시 이어서 기록', result: '경
 export const SCENE_END_BUTTON = { exit: '교체 아웃/기록 종료', gameEnd: '경기 끝 (기록 마치기)' } as const;
 
 /** 미니게임 기록 화면: 장면 바꾸기 대신 경기 끝 단추, 마칠지 묻는 창의 계속 단추 */
-export const MINI_GAME_LABEL = { end: '경기 끝 ›', keepGoing: '계속 기록' } as const;
+export const MINI_GAME_LABEL = { end: '경기 끝', keepGoing: '계속 기록' } as const;
 
 /** 주자인 우리 아이에게 바로 기록하는 버튼 */
 export type ChildRunnerAction = 'stolenBase' | 'caughtStealing' | 'pickoff' | 'pickoffOut' | 'advance' | 'scored' | 'out';
