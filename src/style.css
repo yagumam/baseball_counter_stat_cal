@@ -745,8 +745,32 @@ button:focus-visible {
   gap: 4px;
 }
 
+/* 켜고 끌 때 글자 폭이 바뀌어도 한 줄을 지키도록 칸 너비를 고정한다 */
 .type-toggles .quick-chips {
+  display: grid;
+  grid-template-columns: repeat(var(--type-count), minmax(0, 1fr));
   margin-top: 0;
+}
+
+.type-toggles .quick-chips button {
+  display: grid;
+  justify-items: center;
+  padding: 6px 2px;
+  border-radius: 10px;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.type-toggles .quick-chips button small {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.type-toggles .quick-chips button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-color);
 }
 
 /* 경기 목록 · 경기 정보 */
@@ -765,13 +789,10 @@ button:focus-visible {
   cursor: pointer;
 }
 
-.game-card.current {
-  border: 2px solid var(--primary);
-}
-
-/* 카드를 눌러 고른 경기 (분석 "선택한 경기") */
+/* 카드를 눌러 고른 경기 (분석 "선택한 경기"): 음영과 테두리가 함께 따라간다 */
 .game-card.picked {
   background: var(--primary-soft);
+  border: 2px solid var(--primary);
 }
 
 .type-chip.picked {
@@ -3050,7 +3071,14 @@ input[type='file'].visually-hidden {
 
 .game-card-chips {
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px;
+}
+
+/* 표시가 여럿 붙어도 날짜는 한 줄로 */
+.game-card-head h3 {
+  white-space: nowrap;
 }
 
 .type-chip.ended {

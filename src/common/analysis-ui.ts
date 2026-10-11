@@ -31,15 +31,14 @@ function typeToggles(totalGames: number, actions: AnalysisActions): HTMLElement 
   return h('div', { className: 'type-toggles' }, [
     h(
       'div',
-      { className: 'quick-chips' },
+      { className: 'quick-chips', attrs: { style: `--type-count: ${actions.typeOptions.length}` } },
       actions.typeOptions.map(([type, label, count]) => {
         const on = actions.selectedTypes.includes(type);
-        return h('button', {
-          className: on ? 'active' : '',
-          text: `${on ? '✓ ' : ''}${label} ${count}`,
-          attrs: { type: 'button', 'aria-pressed': String(on) },
-          onClick: () => actions.toggleType(type),
-        });
+        return h(
+          'button',
+          { className: on ? 'active' : '', attrs: { type: 'button', 'aria-pressed': String(on) }, onClick: () => actions.toggleType(type) },
+          [label, h('small', { text: `${count}경기` })],
+        );
       }),
     ),
     h('p', {
