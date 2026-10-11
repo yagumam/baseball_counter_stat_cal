@@ -155,6 +155,10 @@ interface State {
   confirmEnd: boolean;
   /** 분석 "전체"에서 셀 경기 구분 (여러 개) */
   analysisTypes: GameType[];
+  /** 분석 "선택한 경기"에서 볼 경기들 (여러 개). 경기를 고르면 그 경기 하나로 돌아간다. */
+  analysisGameIds: string[];
+  /** 분석 "선택한 경기"의 볼 경기 목록을 펼쳤는지 */
+  gamePickerOpen: boolean;
 }
 
 const DETAIL_MODE_KEY = 'baseball-counter.pitch-detail';
@@ -280,9 +284,17 @@ export function mountApp(root: HTMLElement): void {
     reminderDismissedAt: loadReminderDismissed(),
     confirmEnd: false,
     analysisTypes: loadAnalysisTypes(),
+    analysisGameIds: latest ? [latest.id] : [],
+    gamePickerOpen: false,
   };
 
   const currentGame = (): Game | undefined => state.games.find((g) => g.id === state.currentGameId);
+
+  /** 경기를 고른다. 기록 입력은 이 경기를, 분석 "선택한 경기"는 이 경기 하나를 본다. */
+  const chooseGame = (id: string | null): void => {
+    state.currentGameId = id;
+    state.analysisGameIds = id === null ? [] : [id];
+  };
 
   const persist = (): void => {
     if (!saveGames(STORAGE_KEY, state.games)) state.notice = '기록을 저장하지 못했습니다. 저장 공간을 확인하세요.';
@@ -717,7 +729,7 @@ export function mountApp(root: HTMLElement): void {
     openChildRecord: () => {
       const game = resultGame();
       if (!game) return;
-      state.currentGameId = game.id;
+      chooseGame(game.id);
       state.analysisScope = 'game';
       state.analysisKind = childMainRole(replayOf(game)) ?? state.analysisKind;
       go('analysis');
@@ -726,12 +738,12 @@ export function mountApp(root: HTMLElement): void {
 
   const gamesActions = {
     select: (id: string) => {
-      state.currentGameId = id;
+      chooseGame(id);
       go('input');
     },
     // 카드를 누르면 그 경기를 고른다. 기록 입력과 분석 "선택한 경기"가 모두 이 경기를 쓴다.
     pick: (id: string) => {
-      state.currentGameId = id;
+      chooseGame(id);
       state.analysisScope = 'game';
       render();
     },
@@ -747,7 +759,8 @@ export function mountApp(root: HTMLElement): void {
     confirmDelete: (id: string) => {
       state.deletingId = null;
       state.games = state.games.filter((g) => g.id !== id);
-      if (state.currentGameId === id) state.currentGameId = state.games[state.games.length - 1]?.id ?? null;
+      state.analysisGameIds = state.analysisGameIds.filter((g) => g !== id);
+      if (state.currentGameId === id) chooseGame(state.games[state.games.length - 1]?.id ?? null);
       if (state.games.length === 0) state.form = newGameForm(state.teamName);
       state.notice = '경기를 지웠어요.';
       persist();
@@ -779,7 +792,7 @@ export function mountApp(root: HTMLElement): void {
       if (form.gameId === null) {
         const game = createGame(form.info);
         state.games = [...state.games, game];
-        state.currentGameId = game.id;
+        chooseGame(game.id);
         persist();
         go('input');
         return;
@@ -808,8 +821,12 @@ export function mountApp(root: HTMLElement): void {
       state.analysisTab = t;
       render();
     },
-    pickGame: (id: string) => {
-      state.currentGameId = id;
+    toggleGame: (id: string) => {
+      state.analysisGameIds = state.analysisGameIds.includes(id) ? state.analysisGameIds.filter((g) => g !== id) : [...state.analysisGameIds, id];
+      render();
+    },
+    togglePicker: () => {
+      state.gamePickerOpen = !state.gamePickerOpen;
       render();
     },
     toggleType: (type: GameType) => {
@@ -828,8 +845,11 @@ export function mountApp(root: HTMLElement): void {
   // "전체"는 고른 경기 구분의 경기만 센다. "선택한 경기"는 고른 경기 하나를 그대로 보여준다.
   const statsGames = (): Game[] => gamesOfTypes(state.games, state.analysisTypes);
 
-  const scopedGames = (game: Game, games: readonly Game[]): GameForStats[] =>
-    (state.analysisScope === 'game' ? [game] : games).map((g) => ({ label: gameShortLabel(g), replay: replayOf(g) }));
+  const scopedGames = (counted: readonly Game[]): GameForStats[] =>
+    (state.analysisScope === 'game' ? state.games.filter((g) => state.analysisGameIds.includes(g.id)) : counted).map((g) => ({
+      label: gameShortLabel(g),
+      replay: replayOf(g),
+    }));
 
   const helpActions = {
     close: () => {
@@ -931,7 +951,7 @@ export function mountApp(root: HTMLElement): void {
           state.games = [...merged.games];
           // 첫 화면(경기가 하나도 없을 때)에서 불러왔다면 새 경기 입력 대신 경기 목록을 보여준다.
           if (state.form?.gameId === null && merged.games.length > 0) state.form = null;
-          state.currentGameId ??= state.games[state.games.length - 1]?.id ?? null;
+          if (state.currentGameId === null) chooseGame(state.games[state.games.length - 1]?.id ?? null);
           state.notice = saveGames(STORAGE_KEY, state.games)
             ? mergeSummary(merged)
             : '불러온 기록을 저장하지 못했습니다. 저장 공간을 확인하세요. 앱을 닫으면 불러온 기록이 사라집니다.';
@@ -1005,12 +1025,13 @@ export function mountApp(root: HTMLElement): void {
             },
             'kind-tabs',
           ),
-          analysisView(state.analysisKind)(scopedGames(game, counted), counted.length, state.analysisScope, state.analysisTab, {
+          analysisView(state.analysisKind)(scopedGames(counted), counted.length, state.analysisScope, state.analysisTab, {
             ...analysisActions,
             typeOptions: typeOptions(),
             selectedTypes: state.analysisTypes,
             gameOptions: sortGames(state.games, 'newest').map((g) => [g.id, gamePickLabel(g)]),
-            selectedGameId: game.id,
+            selectedGameIds: state.analysisGameIds,
+            pickerOpen: state.gamePickerOpen,
           }),
         ]);
       }

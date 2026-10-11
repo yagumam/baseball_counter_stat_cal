@@ -13,11 +13,14 @@ export type AnalysisScope = 'game' | 'all';
 export interface AnalysisActions {
   scope: (s: AnalysisScope) => void;
   tab: (t: AnalysisTab) => void;
-  /** "선택한 경기"에서 볼 경기 고르기 */
-  pickGame: (id: string) => void;
-  /** 고를 수 있는 경기 [id, 이름] (최근 경기 먼저)와 지금 고른 경기 */
+  /** "선택한 경기"에서 볼 경기 하나를 넣거나 뺀다 (여러 개) */
+  toggleGame: (id: string) => void;
+  /** 볼 경기 목록 펼치기·접기 */
+  togglePicker: () => void;
+  /** 고를 수 있는 경기 [id, 이름] (최근 경기 먼저)와 지금 고른 경기들 */
   readonly gameOptions: readonly [string, string][];
-  readonly selectedGameId: string;
+  readonly selectedGameIds: readonly string[];
+  readonly pickerOpen: boolean;
   /** "전체"에서 고를 수 있는 경기 구분 [구분, 이름, 경기 수] */
   readonly typeOptions: readonly (readonly [GameType, string, number])[];
   /** "전체"에서 고른 경기 구분 (여러 개) */
@@ -48,19 +51,33 @@ function typeToggles(totalGames: number, actions: AnalysisActions): HTMLElement 
   ]);
 }
 
-/** 볼 경기를 고르는 목록. 휴대폰 기본 고르기 창이 떠서 키보드가 올라오지 않는다. */
+/** 볼 경기를 고르는 목록(여러 개). 접어 두면 몇 경기를 골랐는지만 보이고, 펼치면 경기마다 넣고 뺀다. */
 function gamePicker(actions: AnalysisActions): HTMLElement {
-  const select = h(
-    'select',
-    { attrs: { id: 'analysis-game', 'aria-label': '볼 경기 고르기' } },
-    actions.gameOptions.map(([id, label]) => {
-      const option = h('option', { text: label, attrs: { value: id } });
-      option.selected = id === actions.selectedGameId;
-      return option;
+  const count = actions.selectedGameIds.length;
+  return h('div', { className: 'game-picker' }, [
+    h('button', {
+      className: 'game-picker-toggle',
+      text: `볼 경기 ${count}경기 고름 ${actions.pickerOpen ? '▴' : '▾'}`,
+      attrs: { type: 'button', 'aria-expanded': String(actions.pickerOpen) },
+      onClick: actions.togglePicker,
     }),
-  );
-  select.addEventListener('change', () => actions.pickGame(select.value));
-  return h('label', { className: 'game-picker', attrs: { for: 'analysis-game' } }, ['볼 경기', select]);
+    actions.pickerOpen
+      ? h(
+          'div',
+          { className: 'game-picker-list' },
+          actions.gameOptions.map(([id, label]) => {
+            const on = actions.selectedGameIds.includes(id);
+            return h('button', {
+              className: on ? 'active' : '',
+              text: `${on ? '☑' : '☐'} ${label}`,
+              attrs: { type: 'button', 'aria-pressed': String(on) },
+              onClick: () => actions.toggleGame(id),
+            });
+          }),
+        )
+      : null,
+    count === 0 ? h('p', { className: 'help', text: '볼 경기를 하나 이상 골라 주세요.' }) : null,
+  ]);
 }
 
 export interface Section {

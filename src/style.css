@@ -2577,14 +2577,42 @@ input[type='file'].visually-hidden {
 /* 분석: 볼 경기 고르기 */
 .game-picker {
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 14px;
-  font-weight: 600;
 }
 
-.game-picker select,
+.game-picker-toggle {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  text-align: left;
+}
+
+.game-picker-list {
+  display: grid;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.game-picker-list button {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.game-picker-list button.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  font-weight: 700;
+}
+
 .settings input {
   font: inherit;
   padding: 10px;
