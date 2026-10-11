@@ -35,3 +35,30 @@ export function saveLastBackup(at: string): void {
     // 기억하지 못하면 다음에 알림이 다시 뜰 뿐이다.
   }
 }
+
+const DISMISSED_KEY = 'baseball-counter.backup-reminder-dismissed';
+
+/**
+ * 알림 띠를 보여줄지. "무시하기"를 누른 뒤에는 그 뒤로 새로 바뀐 경기가 생길 때까지 띠를 숨긴다.
+ * (무시해도 백업한 것은 아니므로 백업 안 한 경기 수는 그대로 센다)
+ */
+export function shouldShowReminder(games: readonly Game[], lastBackupAt: string | null, dismissedAt: string | null, minGames: number): boolean {
+  if (gamesChangedSince(games, lastBackupAt).length < minGames) return false;
+  return dismissedAt === null || games.some((g) => lastChangeOf(g) > dismissedAt);
+}
+
+export function loadReminderDismissed(): string | null {
+  try {
+    return parseBackupTime(localStorage.getItem(DISMISSED_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export function saveReminderDismissed(at: string): void {
+  try {
+    localStorage.setItem(DISMISSED_KEY, at);
+  } catch {
+    // 기억하지 못하면 다음에 띠가 다시 뜰 뿐이다.
+  }
+}

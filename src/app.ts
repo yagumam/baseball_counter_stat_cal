@@ -9,7 +9,7 @@ import { BaseIndex, BatterHand, FieldingCredit, GAME_TYPES, GameType, HitType, O
 import { outTypeOptions } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
-import { gamesChangedSince, loadLastBackup, saveLastBackup } from './common/backup-reminder';
+import { gamesChangedSince, loadLastBackup, loadReminderDismissed, saveLastBackup, saveReminderDismissed, shouldShowReminder } from './common/backup-reminder';
 import { downloadFile, shareFile } from './common/download';
 import { backupFileName, backupJson, pitchesCsv, pitchesFileName } from './common/export';
 import { EMPTY_PITCH_DETAIL, FieldDraft, PitchDetail, PitchSheet, isBattedResult } from './common/pitch-detail-view';
@@ -149,6 +149,8 @@ interface State {
   analysisKind: AnalysisKind;
   /** 마지막으로 백업한 시각 (이 휴대폰에 기억) */
   lastBackupAt: string | null;
+  /** 백업 알림 띠에서 "무시하기"를 누른 시각 (이 휴대폰에 기억) */
+  reminderDismissedAt: string | null;
   /** 미니게임에서 경기 끝을 물어보는 중인지 */
   confirmEnd: boolean;
   /** 분석 "전체"에서 셀 경기 구분 (여러 개) */
@@ -275,6 +277,7 @@ export function mountApp(root: HTMLElement): void {
     childBatterHand: loadChildBatterHand(),
     analysisKind: 'pitcher',
     lastBackupAt: loadLastBackup(),
+    reminderDismissedAt: loadReminderDismissed(),
     confirmEnd: false,
     analysisTypes: loadAnalysisTypes(),
   };
@@ -1014,10 +1017,19 @@ export function mountApp(root: HTMLElement): void {
     }
   };
 
+  /** 백업 알림 띠를 새 기록이 생길 때까지 숨긴다. */
+  const dismissReminder = (): void => {
+    const now = new Date().toISOString();
+    saveReminderDismissed(now);
+    state.reminderDismissedAt = now;
+    render();
+  };
+
   const render = (): void => {
     const game = currentGame();
     const unbacked = gamesChangedSince(state.games, state.lastBackupAt).length;
-    const showBackupBanner = unbacked >= BACKUP_REMINDER_MIN_GAMES && state.tab !== 'input' && !state.helpOpen && !state.form;
+    const showBackupBanner =
+      shouldShowReminder(state.games, state.lastBackupAt, state.reminderDismissedAt, BACKUP_REMINDER_MIN_GAMES) && state.tab !== 'input' && !state.helpOpen && !state.form;
     const children: (Node | null)[] = [
       h('header', { className: 'topbar' }, [
         h('h1', { text: APP_NAME }),
@@ -1031,7 +1043,7 @@ export function mountApp(root: HTMLElement): void {
           },
         }),
       ]),
-      showBackupBanner ? backupBanner(unbacked, state.lastBackupAt, settingsActions) : null,
+      showBackupBanner ? backupBanner(unbacked, state.lastBackupAt, settingsActions, dismissReminder) : null,
       h('main', { className: 'content' }, [renderBody(game)]),
       h(
         'nav',
