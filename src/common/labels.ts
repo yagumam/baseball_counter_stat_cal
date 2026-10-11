@@ -216,6 +216,12 @@ export const IMPORT_LABEL = '백업 파일 불러오기';
 /** 한 번 눌러 백업: 휴대폰 공유 창으로 카카오톡·구글 드라이브 등에 보낸다 */
 export const BACKUP_NOW_LABEL = '지금 백업하기';
 
+/** 분석 탭의 리포트 내려받기 단추 */
+export const REPORT_LABEL = { title: '분석 리포트 내려받기', jpg: '화면 그대로 (JPG)', pdf: '보고서 (PDF)' } as const;
+
+/** 백업 알림 띠를 새 기록이 생길 때까지 숨기는 단추 */
+export const BACKUP_DISMISS_LABEL = '무시하기';
+
 export const GAME_ORDER_LABEL: Record<GameOrder, string> = {
   newest: '최근 경기 먼저',
   oldest: '오래된 경기 먼저',

@@ -16,8 +16,8 @@ function host(): ClaudeHost | null {
   return claude && typeof claude.use === 'function' ? claude : null;
 }
 
-function browserDownload(filename: string, data: string, mimeType: string): void {
-  const url = URL.createObjectURL(new Blob([data], { type: mimeType }));
+function browserDownload(filename: string, data: string | Blob, mimeType: string): void {
+  const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: mimeType }));
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
@@ -27,7 +27,7 @@ function browserDownload(filename: string, data: string, mimeType: string): void
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export async function downloadFile(filename: string, data: string, mimeType: string): Promise<DownloadResult> {
+export async function downloadFile(filename: string, data: string | Blob, mimeType: string): Promise<DownloadResult> {
   const claude = host();
   if (!claude) {
     browserDownload(filename, data, mimeType);

@@ -3,13 +3,18 @@
 // 여기서는 상태를 들고 화면을 다시 그리는 일만 한다. 각 화면은 *-view.ts에 있다.
 
 import { batterAnalysisView } from './batter/analysis-view';
-import { AnalysisScope, AnalysisTab } from './common/analysis-ui';
+import { AnalysisScope, AnalysisTab, ReportFormat, reportBar } from './common/analysis-ui';
+import { blocksToPdf, elementToJpeg } from './common/report-export';
+import { ReportModel, ReportSection, reportBlocks, reportPdfName, screenJpegName } from './common/report-view';
+import { pitcherReport } from './pitcher/report';
+import { batterReport } from './batter/report';
+import { fielderReport } from './fielder/report';
 import { h, segmented } from './common/dom';
 import { BaseIndex, BatterHand, FieldingCredit, GAME_TYPES, GameType, HitType, OutType, PLACE_MAX_LENGTH, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
 import { outTypeOptions } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
-import { gamesChangedSince, loadLastBackup, saveLastBackup } from './common/backup-reminder';
+import { gamesChangedSince, loadLastBackup, loadReminderDismissed, saveLastBackup, saveReminderDismissed, shouldShowReminder } from './common/backup-reminder';
 import { downloadFile, shareFile } from './common/download';
 import { backupFileName, backupJson, pitchesCsv, pitchesFileName } from './common/export';
 import { EMPTY_PITCH_DETAIL, FieldDraft, PitchDetail, PitchSheet, isBattedResult } from './common/pitch-detail-view';
@@ -50,7 +55,9 @@ import {
   addDetailEdit,
   GAME_TYPE_LABEL,
   createGame,
+  dateLabel,
   gamePickLabel,
+  opponentLabel,
   gamesOfTypes,
   defaultVenue,
   gameInfo,
@@ -64,6 +71,7 @@ import { sortGames } from './common/game-list';
 import { Chooser, SituationDraft, inputView } from './common/input-view';
 import {
   ANALYSIS_KIND_LABEL,
+  ANALYSIS_SCOPE_LABEL,
   APP_NAME,
   AnalysisKind,
   AppTab,
@@ -149,10 +157,18 @@ interface State {
   analysisKind: AnalysisKind;
   /** 마지막으로 백업한 시각 (이 휴대폰에 기억) */
   lastBackupAt: string | null;
+  /** 백업 알림 띠에서 "무시하기"를 누른 시각 (이 휴대폰에 기억) */
+  reminderDismissedAt: string | null;
   /** 미니게임에서 경기 끝을 물어보는 중인지 */
   confirmEnd: boolean;
   /** 분석 "전체"에서 셀 경기 구분 (여러 개) */
   analysisTypes: GameType[];
+  /** 분석 "선택한 경기"에서 볼 경기들 (여러 개). 경기를 고르면 그 경기 하나로 돌아간다. */
+  analysisGameIds: string[];
+  /** 분석 "선택한 경기"의 볼 경기 목록을 펼쳤는지 */
+  gamePickerOpen: boolean;
+  /** 분석 리포트를 만드는 중이면 그 형식 */
+  reportBusy: ReportFormat | null;
 }
 
 const DETAIL_MODE_KEY = 'baseball-counter.pitch-detail';
@@ -275,11 +291,21 @@ export function mountApp(root: HTMLElement): void {
     childBatterHand: loadChildBatterHand(),
     analysisKind: 'pitcher',
     lastBackupAt: loadLastBackup(),
+    reminderDismissedAt: loadReminderDismissed(),
     confirmEnd: false,
     analysisTypes: loadAnalysisTypes(),
+    analysisGameIds: latest ? [latest.id] : [],
+    gamePickerOpen: false,
+    reportBusy: null,
   };
 
   const currentGame = (): Game | undefined => state.games.find((g) => g.id === state.currentGameId);
+
+  /** 경기를 고른다. 기록 입력은 이 경기를, 분석 "선택한 경기"는 이 경기 하나를 본다. */
+  const chooseGame = (id: string | null): void => {
+    state.currentGameId = id;
+    state.analysisGameIds = id === null ? [] : [id];
+  };
 
   const persist = (): void => {
     if (!saveGames(STORAGE_KEY, state.games)) state.notice = '기록을 저장하지 못했습니다. 저장 공간을 확인하세요.';
@@ -714,7 +740,7 @@ export function mountApp(root: HTMLElement): void {
     openChildRecord: () => {
       const game = resultGame();
       if (!game) return;
-      state.currentGameId = game.id;
+      chooseGame(game.id);
       state.analysisScope = 'game';
       state.analysisKind = childMainRole(replayOf(game)) ?? state.analysisKind;
       go('analysis');
@@ -723,12 +749,12 @@ export function mountApp(root: HTMLElement): void {
 
   const gamesActions = {
     select: (id: string) => {
-      state.currentGameId = id;
+      chooseGame(id);
       go('input');
     },
     // 카드를 누르면 그 경기를 고른다. 기록 입력과 분석 "선택한 경기"가 모두 이 경기를 쓴다.
     pick: (id: string) => {
-      state.currentGameId = id;
+      chooseGame(id);
       state.analysisScope = 'game';
       render();
     },
@@ -744,7 +770,8 @@ export function mountApp(root: HTMLElement): void {
     confirmDelete: (id: string) => {
       state.deletingId = null;
       state.games = state.games.filter((g) => g.id !== id);
-      if (state.currentGameId === id) state.currentGameId = state.games[state.games.length - 1]?.id ?? null;
+      state.analysisGameIds = state.analysisGameIds.filter((g) => g !== id);
+      if (state.currentGameId === id) chooseGame(state.games[state.games.length - 1]?.id ?? null);
       if (state.games.length === 0) state.form = newGameForm(state.teamName);
       state.notice = '경기를 지웠어요.';
       persist();
@@ -776,7 +803,7 @@ export function mountApp(root: HTMLElement): void {
       if (form.gameId === null) {
         const game = createGame(form.info);
         state.games = [...state.games, game];
-        state.currentGameId = game.id;
+        chooseGame(game.id);
         persist();
         go('input');
         return;
@@ -805,8 +832,12 @@ export function mountApp(root: HTMLElement): void {
       state.analysisTab = t;
       render();
     },
-    pickGame: (id: string) => {
-      state.currentGameId = id;
+    toggleGame: (id: string) => {
+      state.analysisGameIds = state.analysisGameIds.includes(id) ? state.analysisGameIds.filter((g) => g !== id) : [...state.analysisGameIds, id];
+      render();
+    },
+    togglePicker: () => {
+      state.gamePickerOpen = !state.gamePickerOpen;
       render();
     },
     toggleType: (type: GameType) => {
@@ -825,8 +856,80 @@ export function mountApp(root: HTMLElement): void {
   // "전체"는 고른 경기 구분의 경기만 센다. "선택한 경기"는 고른 경기 하나를 그대로 보여준다.
   const statsGames = (): Game[] => gamesOfTypes(state.games, state.analysisTypes);
 
-  const scopedGames = (game: Game, games: readonly Game[]): GameForStats[] =>
-    (state.analysisScope === 'game' ? [game] : games).map((g) => ({ label: gameShortLabel(g), replay: replayOf(g) }));
+  /** 지금 분석하는 경기들: "선택한 경기"면 고른 경기들, "전체"면 고른 경기 구분의 경기들 */
+  const scopedGames = (): Game[] =>
+    state.analysisScope === 'game' ? sortGames(state.games.filter((g) => state.analysisGameIds.includes(g.id)), 'oldest') : statsGames();
+
+  const forStats = (games: readonly Game[]): GameForStats[] => games.map((g) => ({ label: gameShortLabel(g), replay: replayOf(g) }));
+
+  /** 리포트에 적는 범위. short는 파일 이름용 */
+  const scopeText = (count: number): { text: string; short: string } =>
+    state.analysisScope === 'game'
+      ? { text: `${ANALYSIS_SCOPE_LABEL.game} ${count}경기`, short: '선택한경기' }
+      : {
+          // 단추로 보이는 경기 구분 중 켠 것만 적는다. (예전 리그경기는 그런 경기가 있을 때만 단추가 있다)
+          text: `${ANALYSIS_SCOPE_LABEL.all} (${typeOptions()
+            .filter(([t]) => state.analysisTypes.includes(t))
+            .map(([, label]) => label)
+            .join(' · ')}) ${count}경기`,
+          short: '전체',
+        };
+
+  const reportModel = (games: readonly Game[]): ReportModel => {
+    const stats = forStats(games);
+    return {
+      scope: scopeText(games.length).text,
+      createdAt: dateLabel(today()),
+      games: games.map((g) => {
+        const info = gameInfo(g);
+        const runs = lineScore(replayOf(g), activeEvents(g.events)).totalRuns;
+        return {
+          date: dateLabel(info.date),
+          opponent: opponentLabel(info.opponent),
+          type: GAME_TYPE_LABEL[info.gameType],
+          place: info.place.trim(),
+          score: `우리 ${runs.us} : ${runs.them} 상대`,
+          summary: childSummary([g]).join(' / '),
+        };
+      }),
+      // 투수 · 타자 · 수비 계산은 각 폴더에서 한다. (CLAUDE.md 0.5)
+      sections: [pitcherReport(stats), batterReport(stats), fielderReport(stats)].filter((s): s is ReportSection => s !== null),
+    };
+  };
+
+  /** 분석 리포트 내려받기: 지금 화면 그대로(JPG) 또는 보고서(PDF) */
+  const downloadReport = (format: ReportFormat): void => {
+    if (state.reportBusy) return;
+    const games = scopedGames();
+    if (games.length === 0) return;
+    state.reportBusy = format;
+    render();
+    // "만드는 중" 표시로 화면을 다시 그렸으므로, 그린 뒤의 분석 화면을 찾는다. (가장자리 여백까지 담게 바깥 칸째로)
+    const page = document.querySelector<HTMLElement>('.analysis-page')?.parentElement;
+    if (!page) {
+      state.reportBusy = null;
+      render();
+      return;
+    }
+    const short = scopeText(games.length).short;
+    const made =
+      format === 'jpg'
+        ? elementToJpeg(page).then((blob) => ({ blob, name: screenJpegName(ANALYSIS_KIND_LABEL[state.analysisKind], short, today()), type: 'image/jpeg' }))
+        : blocksToPdf(reportBlocks(reportModel(games))).then((blob) => ({ blob, name: reportPdfName(short, today()), type: 'application/pdf' }));
+    void made
+      .then((file) => downloadFile(file.name, file.blob, file.type))
+      .then((result) => {
+        state.notice =
+          result === 'saved' ? '리포트를 저장했어요. 휴대폰의 "다운로드" 폴더에 있어요.' : result === 'declined' ? '내려받기를 취소했습니다.' : '이 화면에서는 파일을 내려받을 수 없습니다.';
+      })
+      .catch(() => {
+        state.notice = '리포트를 만들지 못했어요. 다시 해 보세요.';
+      })
+      .finally(() => {
+        state.reportBusy = null;
+        render();
+      });
+  };
 
   const helpActions = {
     close: () => {
@@ -928,7 +1031,7 @@ export function mountApp(root: HTMLElement): void {
           state.games = [...merged.games];
           // 첫 화면(경기가 하나도 없을 때)에서 불러왔다면 새 경기 입력 대신 경기 목록을 보여준다.
           if (state.form?.gameId === null && merged.games.length > 0) state.form = null;
-          state.currentGameId ??= state.games[state.games.length - 1]?.id ?? null;
+          if (state.currentGameId === null) chooseGame(state.games[state.games.length - 1]?.id ?? null);
           state.notice = saveGames(STORAGE_KEY, state.games)
             ? mergeSummary(merged)
             : '불러온 기록을 저장하지 못했습니다. 저장 공간을 확인하세요. 앱을 닫으면 불러온 기록이 사라집니다.';
@@ -992,6 +1095,7 @@ export function mountApp(root: HTMLElement): void {
         );
       case 'analysis': {
         const counted = statsGames();
+        const scoped = scopedGames();
         return h('div', { className: 'analysis-page' }, [
           segmented<AnalysisKind>(
             ANALYSIS_KINDS.map((k) => [k, ANALYSIS_KIND_LABEL[k]]),
@@ -1002,22 +1106,33 @@ export function mountApp(root: HTMLElement): void {
             },
             'kind-tabs',
           ),
-          analysisView(state.analysisKind)(scopedGames(game, counted), counted.length, state.analysisScope, state.analysisTab, {
+          reportBar(state.reportBusy, scoped.length > 0, downloadReport),
+          analysisView(state.analysisKind)(forStats(scoped), counted.length, state.analysisScope, state.analysisTab, {
             ...analysisActions,
             typeOptions: typeOptions(),
             selectedTypes: state.analysisTypes,
             gameOptions: sortGames(state.games, 'newest').map((g) => [g.id, gamePickLabel(g)]),
-            selectedGameId: game.id,
+            selectedGameIds: state.analysisGameIds,
+            pickerOpen: state.gamePickerOpen,
           }),
         ]);
       }
     }
   };
 
+  /** 백업 알림 띠를 새 기록이 생길 때까지 숨긴다. */
+  const dismissReminder = (): void => {
+    const now = new Date().toISOString();
+    saveReminderDismissed(now);
+    state.reminderDismissedAt = now;
+    render();
+  };
+
   const render = (): void => {
     const game = currentGame();
     const unbacked = gamesChangedSince(state.games, state.lastBackupAt).length;
-    const showBackupBanner = unbacked >= BACKUP_REMINDER_MIN_GAMES && state.tab !== 'input' && !state.helpOpen && !state.form;
+    const showBackupBanner =
+      shouldShowReminder(state.games, state.lastBackupAt, state.reminderDismissedAt, BACKUP_REMINDER_MIN_GAMES) && state.tab !== 'input' && !state.helpOpen && !state.form;
     const children: (Node | null)[] = [
       h('header', { className: 'topbar' }, [
         h('h1', { text: APP_NAME }),
@@ -1031,7 +1146,7 @@ export function mountApp(root: HTMLElement): void {
           },
         }),
       ]),
-      showBackupBanner ? backupBanner(unbacked, state.lastBackupAt, settingsActions) : null,
+      showBackupBanner ? backupBanner(unbacked, state.lastBackupAt, settingsActions, dismissReminder) : null,
       h('main', { className: 'content' }, [renderBody(game)]),
       h(
         'nav',

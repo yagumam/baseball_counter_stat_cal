@@ -14,38 +14,16 @@ import {
 import { PITCH_TYPE_LABEL } from '../common/labels';
 import { h } from '../common/dom';
 import { GameForStats } from '../common/stat-base';
-import { END_COUNT_BASIS, PitchTypeRow, summarize } from './stats';
+import { END_COUNT_BASIS, PitchTypeRow, PitcherSummary, summarize } from './stats';
 
-export function pitcherAnalysisView(
-  games: readonly GameForStats[],
-  totalGames: number,
-  scope: AnalysisScope,
-  tab: AnalysisTab,
-  actions: AnalysisActions,
-): HTMLElement {
-  const summary = summarize(games);
-  const header = analysisHeader(totalGames, scope, tab, actions);
-  const noData = summary.sections[0].items[0].value === 0;
-  const empty = noData ? h('p', { className: 'empty', text: '아직 아이가 투수로 나온 기록이 없습니다.' }) : null;
+/** 아이가 투수로 던진 공이 하나라도 있는지 */
+export function hasPitcherData(summary: PitcherSummary): boolean {
+  return summary.sections[0].items[0].value !== 0;
+}
 
-  if (tab === 'process') {
-    return h('section', { className: 'analysis' }, [
-      ...header,
-      empty,
-      ...summary.sections.flatMap((section) => [h('h2', { text: section.title }), ...section.items.map(processCard)]),
-      summary.byInning.length > 0 ? h('h2', { text: '이닝별 투구 수' }) : null,
-      ...summary.byInning.map(processCard),
-      summary.byPitchType.length > 0 ? h('h2', { text: '구종별' }) : null,
-      ...summary.byPitchType.flatMap((r) => [r.pitches, r.share, r.strikeRate, r.speed].map(processCard)),
-      h('h2', { text: '카운트별 피안타율' }),
-      h('p', { className: 'basis', text: END_COUNT_BASIS }),
-      ...summary.byCount.map((row) => processCard(row.battingAverageAgainst)),
-    ]);
-  }
-
-  return h('section', { className: 'analysis' }, [
-    ...header,
-    empty,
+/** "결과" 탭 본문. 분석 리포트(PDF)도 같은 화면 조각을 쓴다. */
+export function pitcherResultContent(summary: PitcherSummary): HTMLElement[] {
+  return [
     ...summary.sections.flatMap(resultCards),
     ...(summary.byInning.length > 0 ? resultCards({ title: '이닝별 투구 수', items: summary.byInning }) : []),
     h('h2', { text: '구종별' }),
@@ -68,5 +46,34 @@ export function pitcherAnalysisView(
       summary.byCount.map((r) => ({ count: r.count, plateAppearances: r.plateAppearances, rate: r.battingAverageAgainst })),
       '피안타율',
     ),
-  ]);
+  ];
+}
+
+export function pitcherAnalysisView(
+  games: readonly GameForStats[],
+  totalGames: number,
+  scope: AnalysisScope,
+  tab: AnalysisTab,
+  actions: AnalysisActions,
+): HTMLElement {
+  const summary = summarize(games);
+  const header = analysisHeader(totalGames, scope, tab, actions);
+  const empty = !hasPitcherData(summary) ? h('p', { className: 'empty', text: '아직 아이가 투수로 나온 기록이 없습니다.' }) : null;
+
+  if (tab === 'process') {
+    return h('section', { className: 'analysis' }, [
+      ...header,
+      empty,
+      ...summary.sections.flatMap((section) => [h('h2', { text: section.title }), ...section.items.map(processCard)]),
+      summary.byInning.length > 0 ? h('h2', { text: '이닝별 투구 수' }) : null,
+      ...summary.byInning.map(processCard),
+      summary.byPitchType.length > 0 ? h('h2', { text: '구종별' }) : null,
+      ...summary.byPitchType.flatMap((r) => [r.pitches, r.share, r.strikeRate, r.speed].map(processCard)),
+      h('h2', { text: '카운트별 피안타율' }),
+      h('p', { className: 'basis', text: END_COUNT_BASIS }),
+      ...summary.byCount.map((row) => processCard(row.battingAverageAgainst)),
+    ]);
+  }
+
+  return h('section', { className: 'analysis' }, [...header, empty, ...pitcherResultContent(summary)]);
 }

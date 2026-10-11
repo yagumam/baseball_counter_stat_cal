@@ -4,7 +4,7 @@ import { Calculation, formatSources } from './calculation';
 import { Count, countLabel } from './count';
 import { h, segmented } from './dom';
 import { DrawPoint, LegendItem, chartCard, fieldSvg, zoneSvg } from './field-view';
-import { ANALYSIS_SCOPE_LABEL } from './labels';
+import { ANALYSIS_SCOPE_LABEL, REPORT_LABEL } from './labels';
 import { GameType } from './events';
 
 export type AnalysisTab = 'result' | 'process';
@@ -13,11 +13,14 @@ export type AnalysisScope = 'game' | 'all';
 export interface AnalysisActions {
   scope: (s: AnalysisScope) => void;
   tab: (t: AnalysisTab) => void;
-  /** "선택한 경기"에서 볼 경기 고르기 */
-  pickGame: (id: string) => void;
-  /** 고를 수 있는 경기 [id, 이름] (최근 경기 먼저)와 지금 고른 경기 */
+  /** "선택한 경기"에서 볼 경기 하나를 넣거나 뺀다 (여러 개) */
+  toggleGame: (id: string) => void;
+  /** 볼 경기 목록 펼치기·접기 */
+  togglePicker: () => void;
+  /** 고를 수 있는 경기 [id, 이름] (최근 경기 먼저)와 지금 고른 경기들 */
   readonly gameOptions: readonly [string, string][];
-  readonly selectedGameId: string;
+  readonly selectedGameIds: readonly string[];
+  readonly pickerOpen: boolean;
   /** "전체"에서 고를 수 있는 경기 구분 [구분, 이름, 경기 수] */
   readonly typeOptions: readonly (readonly [GameType, string, number])[];
   /** "전체"에서 고른 경기 구분 (여러 개) */
@@ -48,19 +51,33 @@ function typeToggles(totalGames: number, actions: AnalysisActions): HTMLElement 
   ]);
 }
 
-/** 볼 경기를 고르는 목록. 휴대폰 기본 고르기 창이 떠서 키보드가 올라오지 않는다. */
+/** 볼 경기를 고르는 목록(여러 개). 접어 두면 몇 경기를 골랐는지만 보이고, 펼치면 경기마다 넣고 뺀다. */
 function gamePicker(actions: AnalysisActions): HTMLElement {
-  const select = h(
-    'select',
-    { attrs: { id: 'analysis-game', 'aria-label': '볼 경기 고르기' } },
-    actions.gameOptions.map(([id, label]) => {
-      const option = h('option', { text: label, attrs: { value: id } });
-      option.selected = id === actions.selectedGameId;
-      return option;
+  const count = actions.selectedGameIds.length;
+  return h('div', { className: 'game-picker' }, [
+    h('button', {
+      className: 'game-picker-toggle',
+      text: `볼 경기 ${count}경기 고름 ${actions.pickerOpen ? '▴' : '▾'}`,
+      attrs: { type: 'button', 'aria-expanded': String(actions.pickerOpen) },
+      onClick: actions.togglePicker,
     }),
-  );
-  select.addEventListener('change', () => actions.pickGame(select.value));
-  return h('label', { className: 'game-picker', attrs: { for: 'analysis-game' } }, ['볼 경기', select]);
+    actions.pickerOpen
+      ? h(
+          'div',
+          { className: 'game-picker-list' },
+          actions.gameOptions.map(([id, label]) => {
+            const on = actions.selectedGameIds.includes(id);
+            return h('button', {
+              className: on ? 'active' : '',
+              text: `${on ? '☑' : '☐'} ${label}`,
+              attrs: { type: 'button', 'aria-pressed': String(on) },
+              onClick: () => actions.toggleGame(id),
+            });
+          }),
+        )
+      : null,
+    count === 0 ? h('p', { className: 'help', text: '볼 경기를 하나 이상 골라 주세요.' }) : null,
+  ]);
 }
 
 export interface Section {
@@ -179,5 +196,55 @@ export function dataTable<T>(rows: readonly T[], columns: readonly TableColumn<T
       h('thead', {}, [h('tr', {}, columns.map((c) => h('th', { text: c.title })))]),
       h('tbody', {}, rows.map((row) => h('tr', {}, columns.map((c) => h('td', { text: c.value(row) }))))),
     ]),
+  ]);
+}
+
+export interface BarRow {
+  readonly label: string;
+  readonly calc: Calculation;
+}
+
+/** 막대 길이 기준: 비율은 1(10할)을 끝으로(넘으면 가장 큰 값), 개수는 가장 큰 값을 끝으로 */
+export type BarScale = 'rate' | 'count';
+
+/** 막대 길이(0~1). 값이 없으면(계산할 수 없음) null */
+export function barLengths(values: readonly (number | null)[], scale: BarScale): (number | null)[] {
+  const known = values.filter((v): v is number => v !== null);
+  const top = Math.max(scale === 'rate' ? 1 : 0, ...known);
+  return values.map((v) => (v === null ? null : top === 0 ? 0 : v / top));
+}
+
+/** 가로 막대 그래프. 숫자는 표와 같은 Calculation 값을 그대로 쓴다. 그릴 값이 없으면 null */
+export function barChart(title: string, rows: readonly BarRow[], scale: BarScale): HTMLElement | null {
+  if (rows.length === 0 || rows.every((r) => r.calc.value === null)) return null;
+  const lengths = barLengths(rows.map((r) => r.calc.value), scale);
+  return h('figure', { className: 'bar-chart' }, [
+    h('figcaption', { text: title }),
+    ...rows.map((row, i) =>
+      h('div', { className: 'bar-row' }, [
+        h('span', { className: 'bar-label', text: row.label }),
+        h('span', { className: 'bar-track' }, [h('span', { className: 'bar-fill', attrs: { style: `width: ${Math.round((lengths[i] ?? 0) * 100)}%` } })]),
+        h('span', { className: 'bar-value', text: row.calc.display }),
+      ]),
+    ),
+  ]);
+}
+
+/** 분석 리포트 형식: 지금 화면 그대로(JPG) · 보고서(PDF) */
+export type ReportFormat = 'jpg' | 'pdf';
+
+/** 분석 리포트 내려받기 단추 줄. 화면 그대로(JPG) 그림에는 들어가지 않는다. */
+export function reportBar(busy: ReportFormat | null, enabled: boolean, onDownload: (format: ReportFormat) => void): HTMLElement {
+  const button = (format: ReportFormat): HTMLElement =>
+    h('button', {
+      className: 'secondary',
+      text: busy === format ? '만드는 중…' : REPORT_LABEL[format],
+      disabled: !enabled || busy !== null,
+      onClick: () => onDownload(format),
+    });
+  return h('div', { className: 'report-bar', attrs: { 'data-html2canvas-ignore': 'true' } }, [
+    h('span', { text: REPORT_LABEL.title }),
+    button('jpg'),
+    button('pdf'),
   ]);
 }

@@ -6,6 +6,8 @@ import { MANUAL_SECTIONS, TUTORIAL_STEPS } from './help-content';
 import {
   APP_NAME,
   BACKUP_NOW_LABEL,
+  BACKUP_DISMISS_LABEL,
+  REPORT_LABEL,
   BATTED_BALL_STRENGTH_LABEL,
   BATTED_BALL_TYPE_LABEL,
   CHILD_RUNNER_BUTTONS,
@@ -95,7 +97,8 @@ describe('도움말이 화면과 맞는지', () => {
     expect(missing([PITCH_DETAIL_LABEL])).toEqual([]);
     expect(missing(Object.values(DOWNLOAD_LABEL))).toEqual([]);
     expect(missing([IMPORT_LABEL])).toEqual([]);
-    expect(missing([BACKUP_NOW_LABEL])).toEqual([]);
+    expect(missing([BACKUP_NOW_LABEL, BACKUP_DISMISS_LABEL])).toEqual([]);
+    expect(missing(Object.values(REPORT_LABEL))).toEqual([]);
     expect(missing(Object.values(PITCH_SHEET_LABEL))).toEqual([]);
     expect(missing(Object.values(HAND_LABEL))).toEqual([]);
     expect(missing(Object.values(GAME_ORDER_LABEL))).toEqual([]);

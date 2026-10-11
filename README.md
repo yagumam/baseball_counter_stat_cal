@@ -36,6 +36,7 @@ npm run build      # 빌드 (dist/)
 ```
 
 - TypeScript · Vite · Vitest. 화면 프레임워크 없이 DOM을 직접 다룹니다.
+- 분석 리포트 내려받기에만 `html2canvas`(화면 → 그림)와 `jspdf`(그림 → PDF)를 씁니다. 누를 때만 불러옵니다.
 - 기록은 휴대폰 브라우저의 로컬 저장소에 저장합니다. (서버 없음)
 - 폴더: `src/common`(공통: 기록 엔진 · 입력 · 경기 · 설정 · 도움말), `src/pitcher` · `src/batter` · `src/fielder`(분석별 통계와 화면), `src/app.ts`(화면 전환)
 

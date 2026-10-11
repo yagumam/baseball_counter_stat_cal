@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gamesChangedSince, lastChangeOf, parseBackupTime } from './backup-reminder';
+import { gamesChangedSince, lastChangeOf, parseBackupTime, shouldShowReminder } from './backup-reminder';
 import { Game } from './game';
 import { appear, pitches } from './test-helpers';
 
@@ -25,6 +25,16 @@ describe('백업 알림', () => {
   it('마지막 백업 뒤에 바뀐 경기만 센다 (백업 뒤에 이어서 기록한 경기 포함)', () => {
     expect(gamesChangedSince([old, fresh, empty], '2026-10-04T10:00:00.000Z')).toEqual([fresh, empty]);
     expect(gamesChangedSince([old, fresh, empty], '2026-10-05T09:00:00.000Z')).toEqual([]);
+  });
+
+  it('무시하기: 누른 뒤 바뀐 경기가 없으면 띠를 숨기고, 새로 기록하면 다시 보여준다', () => {
+    expect(shouldShowReminder([old, fresh], null, null, 1)).toBe(true);
+    expect(shouldShowReminder([old, fresh], null, '2026-10-04T12:00:00.000Z', 1)).toBe(false);
+    expect(shouldShowReminder([old, fresh], null, '2026-10-04T10:00:00.000Z', 1)).toBe(true);
+  });
+
+  it('백업 안 한 경기가 없으면 무시하기와 상관없이 띠를 보이지 않는다', () => {
+    expect(shouldShowReminder([old], '2026-10-02T00:00:00.000Z', null, 1)).toBe(false);
   });
 
   it('저장된 백업 시각이 망가져 있으면 백업한 적 없는 것으로 본다', () => {
