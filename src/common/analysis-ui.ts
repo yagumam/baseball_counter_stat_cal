@@ -4,7 +4,7 @@ import { Calculation, formatSources } from './calculation';
 import { Count, countLabel } from './count';
 import { h, segmented } from './dom';
 import { DrawPoint, LegendItem, chartCard, fieldSvg, zoneSvg } from './field-view';
-import { ANALYSIS_SCOPE_LABEL } from './labels';
+import { ANALYSIS_SCOPE_LABEL, REPORT_LABEL } from './labels';
 import { GameType } from './events';
 
 export type AnalysisTab = 'result' | 'process';
@@ -196,5 +196,55 @@ export function dataTable<T>(rows: readonly T[], columns: readonly TableColumn<T
       h('thead', {}, [h('tr', {}, columns.map((c) => h('th', { text: c.title })))]),
       h('tbody', {}, rows.map((row) => h('tr', {}, columns.map((c) => h('td', { text: c.value(row) }))))),
     ]),
+  ]);
+}
+
+export interface BarRow {
+  readonly label: string;
+  readonly calc: Calculation;
+}
+
+/** 막대 길이 기준: 비율은 1(10할)을 끝으로(넘으면 가장 큰 값), 개수는 가장 큰 값을 끝으로 */
+export type BarScale = 'rate' | 'count';
+
+/** 막대 길이(0~1). 값이 없으면(계산할 수 없음) null */
+export function barLengths(values: readonly (number | null)[], scale: BarScale): (number | null)[] {
+  const known = values.filter((v): v is number => v !== null);
+  const top = Math.max(scale === 'rate' ? 1 : 0, ...known);
+  return values.map((v) => (v === null ? null : top === 0 ? 0 : v / top));
+}
+
+/** 가로 막대 그래프. 숫자는 표와 같은 Calculation 값을 그대로 쓴다. 그릴 값이 없으면 null */
+export function barChart(title: string, rows: readonly BarRow[], scale: BarScale): HTMLElement | null {
+  if (rows.length === 0 || rows.every((r) => r.calc.value === null)) return null;
+  const lengths = barLengths(rows.map((r) => r.calc.value), scale);
+  return h('figure', { className: 'bar-chart' }, [
+    h('figcaption', { text: title }),
+    ...rows.map((row, i) =>
+      h('div', { className: 'bar-row' }, [
+        h('span', { className: 'bar-label', text: row.label }),
+        h('span', { className: 'bar-track' }, [h('span', { className: 'bar-fill', attrs: { style: `width: ${Math.round((lengths[i] ?? 0) * 100)}%` } })]),
+        h('span', { className: 'bar-value', text: row.calc.display }),
+      ]),
+    ),
+  ]);
+}
+
+/** 분석 리포트 형식: 지금 화면 그대로(JPG) · 보고서(PDF) */
+export type ReportFormat = 'jpg' | 'pdf';
+
+/** 분석 리포트 내려받기 단추 줄. 화면 그대로(JPG) 그림에는 들어가지 않는다. */
+export function reportBar(busy: ReportFormat | null, enabled: boolean, onDownload: (format: ReportFormat) => void): HTMLElement {
+  const button = (format: ReportFormat): HTMLElement =>
+    h('button', {
+      className: 'secondary',
+      text: busy === format ? '만드는 중…' : REPORT_LABEL[format],
+      disabled: !enabled || busy !== null,
+      onClick: () => onDownload(format),
+    });
+  return h('div', { className: 'report-bar', attrs: { 'data-html2canvas-ignore': 'true' } }, [
+    h('span', { text: REPORT_LABEL.title }),
+    button('jpg'),
+    button('pdf'),
   ]);
 }

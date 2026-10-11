@@ -5,37 +5,16 @@ import { h } from '../common/dom';
 import { chartCard, fieldSvg } from '../common/field-view';
 import { FIELDING_POSITION_LABEL } from '../common/labels';
 import { GameForStats } from '../common/stat-base';
-import { PositionRow, summarize } from './stats';
+import { FielderSummary, PositionRow, summarize } from './stats';
 
 const HANDLED_LEGEND = [
   { kind: 'out', label: '아웃 처리 (잡거나 던짐)' },
   { kind: 'error', label: '실책' },
 ];
 
-export function fielderAnalysisView(
-  games: readonly GameForStats[],
-  totalGames: number,
-  scope: AnalysisScope,
-  tab: AnalysisTab,
-  actions: AnalysisActions,
-): HTMLElement {
-  const summary = summarize(games);
-  const header = analysisHeader(totalGames, scope, tab, actions);
-  const empty = summary.hasData ? null : h('p', { className: 'empty', text: '아직 아이가 수비한 기록이 없습니다. 장면을 시작할 때 "투수" 또는 "투수 외 수비"를 고르세요.' });
-
-  if (tab === 'process') {
-    return h('section', { className: 'analysis' }, [
-      ...header,
-      empty,
-      ...summary.sections.flatMap((section) => [h('h2', { text: section.title }), ...section.items.map(processCard)]),
-      summary.byPosition.length > 0 ? h('h2', { text: '포지션별' }) : null,
-      ...summary.byPosition.flatMap((r) => [r.innings, r.putouts, r.assists, r.errors, r.fieldingPercentage].map(processCard)),
-    ]);
-  }
-
-  return h('section', { className: 'analysis' }, [
-    ...header,
-    empty,
+/** "결과" 탭 본문. 분석 리포트(PDF)도 같은 화면 조각을 쓴다. */
+export function fielderResultContent(summary: FielderSummary): HTMLElement[] {
+  return [
     ...summary.sections.flatMap(resultCards),
     h('h2', { text: '포지션별' }),
     dataTable<PositionRow>(
@@ -60,5 +39,29 @@ export function fielderAnalysisView(
         `낙구 지점을 찍고 아이의 수비 기록을 고른 타구 ${summary.handledBalls.length}개`,
       ),
     ]),
-  ]);
+  ];
+}
+
+export function fielderAnalysisView(
+  games: readonly GameForStats[],
+  totalGames: number,
+  scope: AnalysisScope,
+  tab: AnalysisTab,
+  actions: AnalysisActions,
+): HTMLElement {
+  const summary = summarize(games);
+  const header = analysisHeader(totalGames, scope, tab, actions);
+  const empty = summary.hasData ? null : h('p', { className: 'empty', text: '아직 아이가 수비한 기록이 없습니다. 장면을 시작할 때 "투수" 또는 "투수 외 수비"를 고르세요.' });
+
+  if (tab === 'process') {
+    return h('section', { className: 'analysis' }, [
+      ...header,
+      empty,
+      ...summary.sections.flatMap((section) => [h('h2', { text: section.title }), ...section.items.map(processCard)]),
+      summary.byPosition.length > 0 ? h('h2', { text: '포지션별' }) : null,
+      ...summary.byPosition.flatMap((r) => [r.innings, r.putouts, r.assists, r.errors, r.fieldingPercentage].map(processCard)),
+    ]);
+  }
+
+  return h('section', { className: 'analysis' }, [...header, empty, ...fielderResultContent(summary)]);
 }
