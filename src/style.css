@@ -789,15 +789,10 @@ button:focus-visible {
   cursor: pointer;
 }
 
-/* 카드를 눌러 고른 경기 (분석 "선택한 경기"): 음영과 테두리가 함께 따라간다 */
-.game-card.picked {
+/* 고른 경기 (기록 입력 · 분석 "선택한 경기"가 쓰는 경기): 음영과 테두리가 함께 따라간다 */
+.game-card.current {
   background: var(--primary-soft);
   border: 2px solid var(--primary);
-}
-
-.type-chip.picked {
-  background: var(--primary);
-  color: var(--on-color);
 }
 
 .game-card-head {

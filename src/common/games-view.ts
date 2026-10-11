@@ -36,7 +36,7 @@ export interface GameForm {
 
 export interface GamesActions {
   select: (id: string) => void;
-  /** 카드를 눌러 분석 "선택한 경기"에서 볼 경기로 고른다 */
+  /** 카드를 눌러 경기를 고른다 (기록 입력·분석이 이 경기를 쓴다) */
   pick: (id: string) => void;
   openResult: (id: string) => void;
   /** 지울지 묻는 창을 연다 (null이면 닫기) */
@@ -245,24 +245,16 @@ function quickChips(options: readonly [string, string][], selected: string, onPi
   return h('div', { className: 'quick-chips' }, buttons);
 }
 
-interface CardMarks {
-  /** 지금 기록 중인 경기 */
-  readonly current: boolean;
-  /** 분석에서 볼 경기로 고른 경기 */
-  readonly picked: boolean;
-}
-
-function gameCard(game: Game, marks: CardMarks, replay: GameReplay, summary: readonly string[], actions: GamesActions): HTMLElement {
+function gameCard(game: Game, isCurrent: boolean, replay: GameReplay, summary: readonly string[], actions: GamesActions): HTMLElement {
   const label = GAME_CARD_LABEL;
   const info = gameInfo(game);
   const pitched = replay.plateAppearances.filter((pa) => pa.fieldingPosition === 'pitcher');
   const pitches = pitched.reduce((n, pa) => n + pa.pitches.length, 0);
   const batted = replay.plateAppearances.filter((pa) => pa.actor === 'child' && pa.outcome !== null).length;
-  const card = h('article', { className: `game-card${marks.current ? ' current' : ''}${marks.picked ? ' picked' : ''}`, attrs: { 'aria-pressed': String(marks.picked) } }, [
+  const card = h('article', { className: `game-card${isCurrent ? ' current' : ''}`, attrs: { 'aria-pressed': String(isCurrent) } }, [
     h('div', { className: 'game-card-head' }, [
       h('h3', { text: dateLabel(info.date) }),
       h('span', { className: 'game-card-chips' }, [
-        marks.picked ? h('span', { className: 'type-chip picked', text: label.picked }) : null,
         replay.gameEnded ? h('span', { className: 'type-chip ended', text: '경기 끝' }) : null,
         h('span', { className: `type-chip ${info.gameType}`, text: GAME_TYPE_LABEL[info.gameType] }),
       ]),
@@ -274,7 +266,7 @@ function gameCard(game: Game, marks: CardMarks, replay: GameReplay, summary: rea
     game.copiedFrom ? h('p', { className: 'sub', text: '백업에서 불러온 사본 (같은 경기가 다르게 기록되어 있어 따로 만듦)' }) : null,
     h('div', { className: 'game-card-buttons' }, [
       h('button', { className: 'primary', text: label.result, onClick: () => actions.openResult(game.id) }),
-      h('button', { className: 'secondary', text: marks.current ? label.resume : label.record, onClick: () => actions.select(game.id) }),
+      h('button', { className: 'secondary', text: isCurrent ? label.resume : label.record, onClick: () => actions.select(game.id) }),
       h('button', { className: 'secondary', text: label.edit, onClick: () => actions.openEdit(game) }),
       h('button', { className: 'secondary danger', text: label.delete, onClick: () => actions.askDelete(game.id) }),
     ]),
@@ -341,7 +333,6 @@ function countText(total: number, shown: number): string {
 export function gamesView(
   games: readonly Game[],
   currentGameId: string | null,
-  pickedGameId: string | null,
   form: GameForm | null,
   list: GameListView,
   deletingId: string | null,
@@ -351,7 +342,7 @@ export function gamesView(
 ): HTMLElement {
   const deleting = games.find((g) => g.id === deletingId);
   const card = (g: Game): HTMLElement =>
-    gameCard(g, { current: g.id === currentGameId, picked: g.id === pickedGameId }, replayOf(g), summaryOf([g]), actions);
+    gameCard(g, g.id === currentGameId, replayOf(g), summaryOf([g]), actions);
   const modeTabs =
     games.length > 0
       ? segmented<GameListView['mode']>(
@@ -377,7 +368,7 @@ export function gamesView(
   const showList = (query: string): void => {
     const shown = sortGames(filterGames(games, query, list.type), list.order);
     cards.replaceChildren(
-      h('p', { className: 'help list-count', text: `${countText(games.length, shown.length)} · 카드를 누르면 분석에서 그 경기를 봐요` }),
+      h('p', { className: 'help list-count', text: `${countText(games.length, shown.length)} · 카드를 눌러 고른 경기로 기록 입력 · 분석을 해요` }),
       ...shown.map(card),
     );
     if (shown.length === 0 && games.length > 0) cards.append(h('p', { className: 'empty', text: '찾는 경기가 없어요. 찾는 말이나 경기 구분을 바꿔 보세요.' }));
