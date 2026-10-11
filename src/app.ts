@@ -139,8 +139,6 @@ interface State {
   resultGameId: string | null;
   /** 지울지 묻고 있는 경기 */
   deletingId: string | null;
-  /** 분석 "선택한 경기"에서 보는 경기. 없으면 지금 기록 중인 경기 */
-  analysisGameId: string | null;
   /** 새 경기에 넣을 우리 팀 이름 (설정, 이 휴대폰에 기억) */
   teamName: string;
   /** 화면 방향 (설정, 이 휴대폰에 기억) */
@@ -272,7 +270,6 @@ export function mountApp(root: HTMLElement): void {
     tip: null,
     resultGameId: null,
     deletingId: null,
-    analysisGameId: null,
     teamName,
     orientation: loadOrientation(),
     childBatterHand: loadChildBatterHand(),
@@ -717,7 +714,7 @@ export function mountApp(root: HTMLElement): void {
     openChildRecord: () => {
       const game = resultGame();
       if (!game) return;
-      state.analysisGameId = game.id;
+      state.currentGameId = game.id;
       state.analysisScope = 'game';
       state.analysisKind = childMainRole(replayOf(game)) ?? state.analysisKind;
       go('analysis');
@@ -729,9 +726,9 @@ export function mountApp(root: HTMLElement): void {
       state.currentGameId = id;
       go('input');
     },
-    // 카드를 누르면 분석 "선택한 경기"에서 그 경기를 본다.
+    // 카드를 누르면 그 경기를 고른다. 기록 입력과 분석 "선택한 경기"가 모두 이 경기를 쓴다.
     pick: (id: string) => {
-      state.analysisGameId = id;
+      state.currentGameId = id;
       state.analysisScope = 'game';
       render();
     },
@@ -748,7 +745,6 @@ export function mountApp(root: HTMLElement): void {
       state.deletingId = null;
       state.games = state.games.filter((g) => g.id !== id);
       if (state.currentGameId === id) state.currentGameId = state.games[state.games.length - 1]?.id ?? null;
-      if (state.analysisGameId === id) state.analysisGameId = null;
       if (state.games.length === 0) state.form = newGameForm(state.teamName);
       state.notice = '경기를 지웠어요.';
       persist();
@@ -810,7 +806,7 @@ export function mountApp(root: HTMLElement): void {
       render();
     },
     pickGame: (id: string) => {
-      state.analysisGameId = id;
+      state.currentGameId = id;
       render();
     },
     toggleType: (type: GameType) => {
@@ -825,9 +821,6 @@ export function mountApp(root: HTMLElement): void {
     const options = [...GAME_TYPES, 'league' as const].map((t) => [t, GAME_TYPE_LABEL[t], gamesOfTypes(state.games, [t]).length] as const);
     return options.filter(([t, , count]) => t !== 'league' || count > 0);
   };
-
-  /** 분석 "선택한 경기": 고른 경기가 없으면 지금 기록 중인 경기 */
-  const analysisGame = (fallback: Game): Game => state.games.find((g) => g.id === state.analysisGameId) ?? fallback;
 
   // "전체"는 고른 경기 구분의 경기만 센다. "선택한 경기"는 고른 경기 하나를 그대로 보여준다.
   const statsGames = (): Game[] => gamesOfTypes(state.games, state.analysisTypes);
@@ -967,7 +960,7 @@ export function mountApp(root: HTMLElement): void {
       );
     }
     if (!game || state.form || state.tab === 'games') {
-      return gamesView(state.games, state.currentGameId, state.analysisGameId ?? state.currentGameId, state.form, state.gameList, state.deletingId, gamesActions, replayOf, childSummary);
+      return gamesView(state.games, state.currentGameId, state.form, state.gameList, state.deletingId, gamesActions, replayOf, childSummary);
     }
     const info = gameInfo(game);
     const replay = replayOf(game);
@@ -998,7 +991,6 @@ export function mountApp(root: HTMLElement): void {
           inputActions,
         );
       case 'analysis': {
-        const chosen = analysisGame(game);
         const counted = statsGames();
         return h('div', { className: 'analysis-page' }, [
           segmented<AnalysisKind>(
@@ -1010,12 +1002,12 @@ export function mountApp(root: HTMLElement): void {
             },
             'kind-tabs',
           ),
-          analysisView(state.analysisKind)(scopedGames(chosen, counted), counted.length, state.analysisScope, state.analysisTab, {
+          analysisView(state.analysisKind)(scopedGames(game, counted), counted.length, state.analysisScope, state.analysisTab, {
             ...analysisActions,
             typeOptions: typeOptions(),
             selectedTypes: state.analysisTypes,
             gameOptions: sortGames(state.games, 'newest').map((g) => [g.id, gamePickLabel(g)]),
-            selectedGameId: chosen.id,
+            selectedGameId: game.id,
           }),
         ]);
       }
