@@ -133,7 +133,7 @@ export function recordsView(model: ResultModel, actions: ResultActions): HTMLEle
   const scenes = [...replay.scenes].reverse();
   return h('section', { className: 'records' }, [
     h('button', { className: 'link-button back-button', text: GAME_RESULT_LABEL.back, onClick: actions.back }),
-    h('p', { className: 'game-title', text: `${dateLabel(info.date)} · ${names.us} vs ${names.them} · ${GAME_TYPE_LABEL[info.gameType]} · ${orderLabel(info)}` }),
+    h('p', { className: 'game-title', text: `${dateLabel(info.date)} · ${names.us} vs ${names.them} · ${GAME_TYPE_LABEL[info.gameType]} · ${orderLabel(info)}${info.place.trim() ? ` · ${info.place.trim()}` : ''}` }),
     h('h2', { className: 'inning-title', attrs: { id: 'scoreboard' }, text: GAME_RESULT_LABEL.scoreboard }),
     lineScoreTable(score, names, replay.state?.inning ?? null, (team, target) => {
       if (typeof target === 'number') {

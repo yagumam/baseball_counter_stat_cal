@@ -5,7 +5,7 @@
 import { batterAnalysisView } from './batter/analysis-view';
 import { AnalysisScope, AnalysisTab } from './common/analysis-ui';
 import { h, segmented } from './common/dom';
-import { BaseIndex, BatterHand, FieldingCredit, HitType, OutType, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
+import { BaseIndex, BatterHand, FieldingCredit, HitType, OutType, PitchResult, PLACE_MAX_LENGTH, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
 import { outTypeOptions } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
@@ -201,7 +201,7 @@ const BLOCKED_ADVANCE_REASON = '다음 베이스에 주자가 있어요. 주자�
 function newGameForm(teamName: string): GameForm {
   return {
     gameId: null,
-    info: { date: today(), opponent: '', gameType: 'practice', battingFirst: 'them', venue: defaultVenue('them'), ourTeam: teamName },
+    info: { date: today(), opponent: '', gameType: 'practice', battingFirst: 'them', venue: defaultVenue('them'), ourTeam: teamName, place: '' },
     error: null,
   };
 }
@@ -212,6 +212,7 @@ export function validateInfo(info: GameInfo): string | null {
   if (!DATE_PATTERN.test(info.date)) return '경기 날짜를 골라 주세요.';
   if (info.opponent.trim().length > OPPONENT_MAX_LENGTH) return `상대팀 이름은 ${OPPONENT_MAX_LENGTH}자까지 넣을 수 있어요.`;
   if (info.ourTeam.trim().length > TEAM_NAME_MAX_LENGTH) return `우리 팀 이름은 ${TEAM_NAME_MAX_LENGTH}자까지 넣을 수 있어요.`;
+  if (info.place.trim().length > PLACE_MAX_LENGTH) return `장소는 ${PLACE_MAX_LENGTH}자까지 넣을 수 있어요.`;
   return null;
 }
 

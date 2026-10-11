@@ -1,7 +1,7 @@
 // 경기 목록과 경기 정보 입력 화면 (공통)
 
 import { h } from './dom';
-import { GAME_TYPES, GameType, TEAM_NAME_MAX_LENGTH, Team, Venue } from './events';
+import { GAME_TYPES, GameType, PLACE_MAX_LENGTH, TEAM_NAME_MAX_LENGTH, Team, Venue } from './events';
 import {
   GAME_TYPE_LABEL,
   Game,
@@ -16,6 +16,7 @@ import {
   orderLabel,
   ourTeamLabel,
   recentOpponents,
+  recentPlaces,
   shiftDate,
   today,
 } from './game';
@@ -79,7 +80,7 @@ function picker<T extends string>(
   return { element: h('div', { className }, buttons), show };
 }
 
-function formView(form: GameForm, hasGames: boolean, opponents: readonly string[], actions: GamesActions): HTMLElement {
+function formView(form: GameForm, hasGames: boolean, opponents: readonly string[], places: readonly string[], actions: GamesActions): HTMLElement {
   // 입력할 때마다 다시 그리면 키보드가 닫히므로, 값은 그때그때 담아 두고 저장할 때 한 번에 쓴다.
   let current = form;
   const update = (info: Partial<GameInfo>): void => {
@@ -102,6 +103,19 @@ function formView(form: GameForm, hasGames: boolean, opponents: readonly string[
     },
   });
   opponentInput.addEventListener('input', () => update({ opponent: opponentInput.value }));
+
+  const placeInput = h('input', {
+    attrs: {
+      id: 'game-place',
+      type: 'text',
+      value: form.info.place,
+      placeholder: '예: ○○초 운동장 (비워도 돼요)',
+      autocomplete: 'off',
+      enterkeyhint: 'done',
+      maxlength: String(PLACE_MAX_LENGTH),
+    },
+  });
+  placeInput.addEventListener('input', () => update({ place: placeInput.value }));
 
   // 우리 팀 이름은 설정에서 정한 값이 미리 들어 있어 보통은 손대지 않는다.
   const teamInput = h('input', {
@@ -163,6 +177,17 @@ function formView(form: GameForm, hasGames: boolean, opponents: readonly string[
           },
         )
       : null;
+  const placeChips =
+    places.length > 0
+      ? quickChips(
+          places.map((name) => [name, name] as [string, string]),
+          form.info.place.trim(),
+          (name) => {
+            placeInput.value = name;
+            update({ place: name });
+          },
+        )
+      : null;
 
   return h('section', { className: 'game-form' }, [
     h('h2', { text: form.gameId ? '경기 정보 고치기' : '새 경기' }),
@@ -172,6 +197,9 @@ function formView(form: GameForm, hasGames: boolean, opponents: readonly string[
     h('label', { attrs: { for: 'game-opponent' } }, ['상대팀', opponentInput]),
     opponentChips ? h('p', { className: 'help quick-help', text: '예전 상대팀을 누르면 바로 들어가요' }) : null,
     opponentChips,
+    h('label', { attrs: { for: 'game-place' } }, ['장소', placeInput]),
+    placeChips ? h('p', { className: 'help quick-help', text: '예전 장소를 누르면 바로 들어가요' }) : null,
+    placeChips,
     h('div', { className: 'field' }, [
       h('span', { text: '경기 구분' }),
       picker<GameType>(GAME_TYPES.map((t) => [t, GAME_TYPE_LABEL[t]]), form.info.gameType, (t) => update({ gameType: t }), 'type-picker one-row').element,
@@ -230,6 +258,7 @@ function gameCard(game: Game, isCurrent: boolean, replay: GameReplay, summary: r
       ]),
     ]),
     h('p', { className: 'opponent', text: `${ourTeamLabel(info)} vs ${opponentLabel(info.opponent)} · ${orderLabel(info)}` }),
+    info.place.trim() ? h('p', { className: 'sub', text: `장소: ${info.place.trim()}` }) : null,
     summary.length > 0 ? h('p', { className: 'game-summary' }, summary.flatMap((line, i) => (i === 0 ? [line] : [h('br'), line]))) : null,
     h('p', { className: 'sub', text: `장면 ${replay.scenes.length} · 투구 ${pitches}개 · 타석 ${batted}` }),
     game.copiedFrom ? h('p', { className: 'sub', text: '백업에서 불러온 사본 (같은 경기가 다르게 기록되어 있어 따로 만듦)' }) : null,
@@ -313,7 +342,7 @@ export function gamesView(
           'kind-tabs',
         )
       : null;
-  if (form) return formView(form, games.length > 0, recentOpponents(games), actions);
+  if (form) return formView(form, games.length > 0, recentOpponents(games), recentPlaces(games), actions);
   if (list.mode === 'calendar' && games.length > 0) {
     return h('section', { className: 'games' }, [
       h('button', { className: 'primary new-game', text: '+ 새 경기', onClick: actions.openNew }),

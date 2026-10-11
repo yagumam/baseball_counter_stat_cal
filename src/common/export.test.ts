@@ -7,7 +7,7 @@ import { replayGame } from './replay';
 const replayOf = (g: Game) => replayGame(playEvents(activeEvents(g.events)), { battingFirst: gameInfo(g).battingFirst });
 
 function sampleGame(): Game {
-  let g = createGame({ date: '2026-10-05', opponent: '서울 "A", 초', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '' });
+  let g = createGame({ date: '2026-10-05', opponent: '서울 "A", 초', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
   g = addAppearance(g, { role: 'pitcher', inning: 1, outs: 0, bases: [false, false, false], balls: 0, strikes: 0 });
   g = addPitch(g, 'ball', { pitchType: 'fastball', speed: 98, zone: { x: 0.1, y: 0.5 } });
   g = addPitch(g, 'hit', { hitType: 'double', battedBall: { x: 0.8, y: 0.55, type: 'line', strength: 'hard' } });
@@ -37,7 +37,7 @@ describe('표 파일(CSV)', () => {
   });
 
   it('수비 장면: 아이 수비 자리와 받은 수비 기록을 적는다', () => {
-    let g = createGame({ date: '2026-10-05', opponent: '가팀', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '' });
+    let g = createGame({ date: '2026-10-05', opponent: '가팀', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
     g = addAppearance(g, { role: 'fielder', position: 'shortstop', inning: 1, outs: 0, bases: [false, false, false], balls: 0, strikes: 0 });
     g = addPitch(g, 'out', { fielding: ['putout', 'assist'] });
     const row = pitchesCsv([g], replayOf).replace('\ufeff', '').trim().split('\r\n')[1];
@@ -56,7 +56,7 @@ describe('백업 파일(JSON)', () => {
   it('파일 이름', () => {
     expect(pitchesFileName('2026-10-05')).toBe('baseball-pitches-2026-10-05.csv');
     const make = (date: string, opponent: string, gameType: 'practice' | 'league') =>
-      createGame({ date, opponent, gameType, battingFirst: 'them', venue: 'home', ourTeam: '' });
+      createGame({ date, opponent, gameType, battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
     const games = [make('2026-10-01', '가람초', 'league'), make('2026-10-05', '서울 휘문중', 'practice'), make('2026-09-30', '', 'league')];
     // 가장 최근 경기 기준, 띄어쓰기는 뺀다
     expect(backupFileName(games, '2026-10-06', 'json')).toBe('서울휘문중_연습_2026-10-05.json');

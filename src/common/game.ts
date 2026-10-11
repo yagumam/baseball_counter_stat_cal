@@ -44,6 +44,8 @@ export interface GameInfo {
   readonly venue: Venue;
   /** 우리 팀 이름. 비어 있으면 "우리 팀"으로 보여준다. */
   readonly ourTeam: string;
+  /** 경기 장소. 비어 있으면 보여주지 않는다. */
+  readonly place: string;
 }
 
 /** 선공/후공만 정했을 때의 홈/원정: 보통 후공이 홈팀이다. */
@@ -106,16 +108,26 @@ export const OPPONENT_MAX_LENGTH = 30;
 /** 상대팀 빠른 선택에 보여줄 최대 개수 */
 export const RECENT_OPPONENT_LIMIT = 6;
 
+/** 예전에 입력한 값(상대팀·장소). 최근 경기 먼저, 같은 값은 한 번만 */
+function recentValues(games: readonly Game[], pick: (info: GameInfo) => string, limit: number): string[] {
+  const infos = games.map(gameInfo).sort((a, b) => b.date.localeCompare(a.date));
+  const values: string[] = [];
+  for (const info of infos) {
+    const value = pick(info).trim();
+    if (value && !values.includes(value)) values.push(value);
+    if (values.length >= limit) break;
+  }
+  return values;
+}
+
 /** 예전에 입력한 상대팀 이름. 최근 경기 먼저, 같은 이름은 한 번만 */
 export function recentOpponents(games: readonly Game[], limit = RECENT_OPPONENT_LIMIT): string[] {
-  const infos = games.map(gameInfo).sort((a, b) => b.date.localeCompare(a.date));
-  const names: string[] = [];
-  for (const info of infos) {
-    const name = info.opponent.trim();
-    if (name && !names.includes(name)) names.push(name);
-    if (names.length >= limit) break;
-  }
-  return names;
+  return recentValues(games, (info) => info.opponent, limit);
+}
+
+/** 예전에 입력한 경기 장소. 최근 경기 먼저, 같은 장소는 한 번만 */
+export function recentPlaces(games: readonly Game[], limit = RECENT_OPPONENT_LIMIT): string[] {
+  return recentValues(games, (info) => info.place, limit);
 }
 
 function base(): { id: string; createdAt: string; author: string } {
@@ -255,6 +267,7 @@ const UNKNOWN_INFO: GameInfo = {
   battingFirst: 'them',
   venue: 'home',
   ourTeam: '',
+  place: '',
 };
 
 /** 가장 최근에 입력한 경기 정보. 예전 기록에 없는 값은 기본값(후공, 후공이면 홈)으로 채운다. */
@@ -270,6 +283,7 @@ export function gameInfo(game: Game): GameInfo {
     battingFirst,
     venue: latest.venue ?? defaultVenue(battingFirst),
     ourTeam: latest.ourTeam ?? '',
+    place: latest.place ?? '',
   };
 }
 

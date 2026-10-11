@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Game, countsInStats, createGame, gameInfo, isGame, recentOpponents, shiftDate, upgradeLegacyGame } from './game';
+import { Game, countsInStats, createGame, gameInfo, isGame, recentOpponents, recentPlaces, shiftDate, upgradeLegacyGame } from './game';
 import { GameType } from './events';
 import { LogEvent } from './events';
 
@@ -10,7 +10,7 @@ describe('예전 기록 읽기', () => {
     const game: Game = { id: 'g', createdAt: '2026-10-01T09:00:00.000Z', author: '나', events: [legacyPitch] };
     const up = upgradeLegacyGame(game);
     expect(up.events.map((e) => e.kind)).toEqual(['gameInfo', 'appearance', 'pitch']);
-    expect(gameInfo(up)).toMatchObject({ date: '2026-10-01', battingFirst: 'them', venue: 'home', ourTeam: '' });
+    expect(gameInfo(up)).toMatchObject({ date: '2026-10-01', battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
   });
 
   it('시작 이닝이 있던 두 번째 버전: 그 이닝에 투수로 등장', () => {
@@ -32,7 +32,7 @@ describe('규칙을 바꿔 저장했던 경기', () => {
     const info = { kind: 'gameInfo', id: 'i', createdAt: 'x', author: '나', date: '2026-10-02', opponent: '', gameType: 'practice', battingFirst: 'them', rules: { ballsForWalk: 5, strikesForStrikeout: 4, outsPerInning: 3 } };
     const game = { id: 'g', createdAt: 'x', author: '나', events: [info] };
     expect(isGame(game)).toBe(true);
-    expect(gameInfo(game as Game)).toEqual({ date: '2026-10-02', opponent: '', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '' });
+    expect(gameInfo(game as Game)).toEqual({ date: '2026-10-02', opponent: '', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
   });
 });
 
@@ -45,10 +45,23 @@ describe('경기 정보 빠른 입력', () => {
   });
 
   it('예전 상대팀: 최근 경기 먼저, 같은 이름·빈 이름은 한 번만/빼고', () => {
-    const game = (date: string, opponent: string) => createGame({ date, opponent, gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '' });
+    const game = (date: string, opponent: string) => createGame({ date, opponent, gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
     const games = [game('2026-09-01', '가팀'), game('2026-10-01', '나팀'), game('2026-09-15', ' 가팀 '), game('2026-10-02', '')];
     expect(recentOpponents(games)).toEqual(['나팀', '가팀']);
     expect(recentOpponents(games, 1)).toEqual(['나팀']);
+  });
+
+  it('예전 장소: 최근 경기 먼저, 같은 장소는 한 번만, 빈 장소는 빼고', () => {
+    const game = (date: string, place: string) => createGame({ date, opponent: '', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place });
+    const games = [game('2026-09-01', '가초 운동장'), game('2026-10-01', '시민구장'), game('2026-09-15', ' 가초 운동장 '), game('2026-10-02', '')];
+    expect(recentPlaces(games)).toEqual(['시민구장', '가초 운동장']);
+  });
+
+  it('장소는 고친 경기 정보에 남고, 장소가 없던 예전 기록은 빈 값', () => {
+    const game = createGame({ date: '2026-10-11', opponent: '', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place: '시민구장' });
+    expect(gameInfo(game).place).toBe('시민구장');
+    expect(isGame(game)).toBe(true);
+    expect(isGame({ ...game, events: game.events.map((e) => ({ ...e, place: 'ㄱ'.repeat(31) })) })).toBe(false);
   });
 });
 
@@ -69,7 +82,7 @@ describe('아웃 종류 저장 검사', () => {
 });
 
 describe('경기 구분과 통계', () => {
-  const ofType = (gameType: GameType) => createGame({ date: '2026-10-10', opponent: '', gameType, battingFirst: 'them', venue: 'home', ourTeam: '' });
+  const ofType = (gameType: GameType) => createGame({ date: '2026-10-10', opponent: '', gameType, battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
 
   it('미니게임 · 기타는 통계에서 빼고, 연습 · 대회 · 예전 리그경기는 넣는다', () => {
     expect(countsInStats(ofType('mini'))).toBe(false);

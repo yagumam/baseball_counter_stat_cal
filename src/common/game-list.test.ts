@@ -4,7 +4,7 @@ import { Game, createGame, gameInfo } from './game';
 import { filterGames, sortGames } from './game-list';
 
 function game(date: string, opponent: string, gameType: GameType = 'practice'): Game {
-  return createGame({ date, opponent, gameType, battingFirst: 'them', venue: 'home', ourTeam: '' });
+  return createGame({ date, opponent, gameType, battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
 }
 
 const a = game('2026-09-01', '서울 가초', 'tournament');
@@ -32,6 +32,11 @@ describe('경기 정렬', () => {
 });
 
 describe('경기 찾기', () => {
+  it('장소로도 찾는다', () => {
+    const atPark = createGame({ date: '2026-10-11', opponent: '다초', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place: '시민구장' });
+    expect(filterGames([a, atPark], '시민', 'all')).toEqual([atPark]);
+  });
+
   it('상대팀 이름 일부, 띄어쓰기 무시', () => {
     expect(filterGames([a, b, c, d], '서울가', 'all')).toEqual([a, d]);
     expect(filterGames([a, b, c, d], '나 초', 'all')).toEqual([b]);

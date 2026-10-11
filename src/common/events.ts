@@ -139,6 +139,9 @@ export type Venue = 'home' | 'away';
 /** 우리 팀 이름 최대 글자 수 */
 export const TEAM_NAME_MAX_LENGTH = 30;
 
+/** 경기 장소 최대 글자 수 */
+export const PLACE_MAX_LENGTH = 30;
+
 /** 초(top) / 말(bottom) */
 export type Half = 'top' | 'bottom';
 
@@ -310,6 +313,8 @@ export interface GameInfoEvent extends EventBase {
   readonly venue?: Venue;
   /** 우리 팀 이름. 없거나 비어 있으면 "우리 팀" */
   readonly ourTeam?: string;
+  /** 경기 장소 (예: ○○초 운동장). 없거나 비어 있으면 표시하지 않는다. */
+  readonly place?: string;
 }
 
 export interface VoidEvent extends EventBase {
@@ -514,7 +519,8 @@ export function isLogEvent(value: unknown): value is LogEvent {
         (value.startInning === undefined || isCount(value.startInning, 1, MAX_INNING)) &&
         (value.battingFirst === undefined || value.battingFirst === 'us' || value.battingFirst === 'them') &&
         (value.venue === undefined || value.venue === 'home' || value.venue === 'away') &&
-        (value.ourTeam === undefined || (typeof value.ourTeam === 'string' && value.ourTeam.length <= TEAM_NAME_MAX_LENGTH))
+        (value.ourTeam === undefined || (typeof value.ourTeam === 'string' && value.ourTeam.length <= TEAM_NAME_MAX_LENGTH)) &&
+        (value.place === undefined || (typeof value.place === 'string' && value.place.length <= PLACE_MAX_LENGTH))
       );
     case 'void':
       return typeof value.targetId === 'string';
