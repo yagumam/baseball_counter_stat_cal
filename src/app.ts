@@ -5,7 +5,7 @@
 import { batterAnalysisView } from './batter/analysis-view';
 import { AnalysisScope, AnalysisTab } from './common/analysis-ui';
 import { h, segmented } from './common/dom';
-import { DEFAULT_ANALYSIS_GAME_TYPES, GAME_TYPES, GameType, BaseIndex, BatterHand, FieldingCredit, HitType, OutType, PitchResult, PLACE_MAX_LENGTH, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
+import { GAME_TYPES, GameType, BaseIndex, BatterHand, FieldingCredit, HitType, OutType, PitchResult, PLACE_MAX_LENGTH, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
 import { outTypeOptions } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
@@ -16,10 +16,12 @@ import { EMPTY_PITCH_DETAIL, FieldDraft, PitchDetail, PitchSheet, isBattedResult
 import {
   Hand,
   OrientationMode,
+  loadAnalysisTypes,
   loadChildBatterHand,
   loadHand,
   loadOrientation,
   loadTeamName,
+  saveAnalysisTypes,
   saveChildBatterHand,
   saveHand,
   saveOrientation,
@@ -277,7 +279,7 @@ export function mountApp(root: HTMLElement): void {
     analysisKind: 'pitcher',
     lastBackupAt: loadLastBackup(),
     confirmEnd: false,
-    analysisTypes: [...DEFAULT_ANALYSIS_GAME_TYPES],
+    analysisTypes: loadAnalysisTypes(),
   };
 
   const currentGame = (): Game | undefined => state.games.find((g) => g.id === state.currentGameId);
@@ -813,6 +815,7 @@ export function mountApp(root: HTMLElement): void {
     },
     toggleType: (type: GameType) => {
       state.analysisTypes = state.analysisTypes.includes(type) ? state.analysisTypes.filter((t) => t !== type) : [...state.analysisTypes, type];
+      saveAnalysisTypes(state.analysisTypes);
       render();
     },
   };

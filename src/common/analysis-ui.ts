@@ -44,7 +44,7 @@ function typeToggles(totalGames: number, actions: AnalysisActions): HTMLElement 
     ),
     h('p', {
       className: 'help',
-      text: actions.selectedTypes.length === 0 ? '셀 경기 구분을 하나 이상 골라 주세요.' : `고른 경기 구분 ${totalGames}경기를 모아 셌어요. 눌러서 넣고 뺄 수 있어요.`,
+      text: actions.selectedTypes.length === 0 ? '셀 경기 구분을 하나 이상 골라 주세요.' : `고른 경기 구분 ${totalGames}경기를 모아 셌어요. 눌러서 넣고 빼면 다음에도 기억해요.`,
     }),
   ]);
 }
