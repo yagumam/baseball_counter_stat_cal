@@ -5,7 +5,7 @@
 import { batterAnalysisView } from './batter/analysis-view';
 import { AnalysisScope, AnalysisTab } from './common/analysis-ui';
 import { h, segmented } from './common/dom';
-import { GAME_TYPES, GameType, BaseIndex, BatterHand, FieldingCredit, HitType, OutType, PitchResult, PLACE_MAX_LENGTH, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
+import { BaseIndex, BatterHand, FieldingCredit, GAME_TYPES, GameType, HitType, OutType, PLACE_MAX_LENGTH, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
 import { outTypeOptions } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
@@ -822,9 +822,8 @@ export function mountApp(root: HTMLElement): void {
 
   /** "전체"에서 고를 수 있는 경기 구분. 예전 리그경기는 그런 경기가 있을 때만 보여준다. */
   const typeOptions = (): (readonly [GameType, string, number])[] => {
-    const types: GameType[] = [...GAME_TYPES];
-    if (gamesOfTypes(state.games, ['league']).length > 0) types.push('league');
-    return types.map((t) => [t, GAME_TYPE_LABEL[t], gamesOfTypes(state.games, [t]).length] as const);
+    const options = [...GAME_TYPES, 'league' as const].map((t) => [t, GAME_TYPE_LABEL[t], gamesOfTypes(state.games, [t]).length] as const);
+    return options.filter(([t, , count]) => t !== 'league' || count > 0);
   };
 
   /** 분석 "선택한 경기": 고른 경기가 없으면 지금 기록 중인 경기 */
@@ -833,10 +832,8 @@ export function mountApp(root: HTMLElement): void {
   // "전체"는 고른 경기 구분의 경기만 센다. "선택한 경기"는 고른 경기 하나를 그대로 보여준다.
   const statsGames = (): Game[] => gamesOfTypes(state.games, state.analysisTypes);
 
-  const scopedGames = (game: Game): GameForStats[] =>
-    state.analysisScope === 'game'
-      ? [{ label: gameShortLabel(game), replay: replayOf(game) }]
-      : statsGames().map((g) => ({ label: gameShortLabel(g), replay: replayOf(g) }));
+  const scopedGames = (game: Game, games: readonly Game[]): GameForStats[] =>
+    (state.analysisScope === 'game' ? [game] : games).map((g) => ({ label: gameShortLabel(g), replay: replayOf(g) }));
 
   const helpActions = {
     close: () => {
@@ -1002,6 +999,7 @@ export function mountApp(root: HTMLElement): void {
         );
       case 'analysis': {
         const chosen = analysisGame(game);
+        const counted = statsGames();
         return h('div', { className: 'analysis-page' }, [
           segmented<AnalysisKind>(
             ANALYSIS_KINDS.map((k) => [k, ANALYSIS_KIND_LABEL[k]]),
@@ -1012,7 +1010,7 @@ export function mountApp(root: HTMLElement): void {
             },
             'kind-tabs',
           ),
-          analysisView(state.analysisKind)(scopedGames(chosen), statsGames().length, state.analysisScope, state.analysisTab, {
+          analysisView(state.analysisKind)(scopedGames(chosen, counted), counted.length, state.analysisScope, state.analysisTab, {
             ...analysisActions,
             typeOptions: typeOptions(),
             selectedTypes: state.analysisTypes,

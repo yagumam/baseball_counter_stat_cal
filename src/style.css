@@ -762,6 +762,7 @@ button:focus-visible {
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
+  cursor: pointer;
 }
 
 .game-card.current {
@@ -769,10 +770,6 @@ button:focus-visible {
 }
 
 /* 카드를 눌러 고른 경기 (분석 "선택한 경기") */
-.game-card {
-  cursor: pointer;
-}
-
 .game-card.picked {
   background: var(--primary-soft);
 }

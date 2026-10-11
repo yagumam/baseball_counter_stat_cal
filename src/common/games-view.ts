@@ -253,13 +253,12 @@ interface CardMarks {
 }
 
 function gameCard(game: Game, marks: CardMarks, replay: GameReplay, summary: readonly string[], actions: GamesActions): HTMLElement {
-  const isCurrent = marks.current;
   const label = GAME_CARD_LABEL;
   const info = gameInfo(game);
   const pitched = replay.plateAppearances.filter((pa) => pa.fieldingPosition === 'pitcher');
   const pitches = pitched.reduce((n, pa) => n + pa.pitches.length, 0);
   const batted = replay.plateAppearances.filter((pa) => pa.actor === 'child' && pa.outcome !== null).length;
-  const card = h('article', { className: `game-card${isCurrent ? ' current' : ''}${marks.picked ? ' picked' : ''}`, attrs: { 'aria-pressed': String(marks.picked) } }, [
+  const card = h('article', { className: `game-card${marks.current ? ' current' : ''}${marks.picked ? ' picked' : ''}`, attrs: { 'aria-pressed': String(marks.picked) } }, [
     h('div', { className: 'game-card-head' }, [
       h('h3', { text: dateLabel(info.date) }),
       h('span', { className: 'game-card-chips' }, [
@@ -275,7 +274,7 @@ function gameCard(game: Game, marks: CardMarks, replay: GameReplay, summary: rea
     game.copiedFrom ? h('p', { className: 'sub', text: '백업에서 불러온 사본 (같은 경기가 다르게 기록되어 있어 따로 만듦)' }) : null,
     h('div', { className: 'game-card-buttons' }, [
       h('button', { className: 'primary', text: label.result, onClick: () => actions.openResult(game.id) }),
-      h('button', { className: 'secondary', text: isCurrent ? label.resume : label.record, onClick: () => actions.select(game.id) }),
+      h('button', { className: 'secondary', text: marks.current ? label.resume : label.record, onClick: () => actions.select(game.id) }),
       h('button', { className: 'secondary', text: label.edit, onClick: () => actions.openEdit(game) }),
       h('button', { className: 'secondary danger', text: label.delete, onClick: () => actions.askDelete(game.id) }),
     ]),
@@ -335,6 +334,10 @@ function listControls(list: GameListView, onQuery: (query: string) => void, acti
   ]);
 }
 
+function countText(total: number, shown: number): string {
+  return shown === total ? `경기 ${total}개` : `경기 ${total}개 중 ${shown}개`;
+}
+
 export function gamesView(
   games: readonly Game[],
   currentGameId: string | null,
@@ -374,7 +377,7 @@ export function gamesView(
   const showList = (query: string): void => {
     const shown = sortGames(filterGames(games, query, list.type), list.order);
     cards.replaceChildren(
-      h('p', { className: 'help list-count', text: `${shown.length === games.length ? `경기 ${games.length}개` : `경기 ${games.length}개 중 ${shown.length}개`} · 카드를 누르면 분석에서 그 경기를 봐요` }),
+      h('p', { className: 'help list-count', text: `${countText(games.length, shown.length)} · 카드를 누르면 분석에서 그 경기를 봐요` }),
       ...shown.map(card),
     );
     if (shown.length === 0 && games.length > 0) cards.append(h('p', { className: 'empty', text: '찾는 경기가 없어요. 찾는 말이나 경기 구분을 바꿔 보세요.' }));
