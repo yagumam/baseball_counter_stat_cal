@@ -7,10 +7,10 @@ export type TipKey = 'wildPitch' | 'fieldersChoice';
 
 export const TIPS: Record<TipKey, { title: string; lines: readonly string[] }> = {
   wildPitch: {
-    title: '와일드피치 기록 요령',
+    title: '와일드피치 · 포일 기록 요령',
     lines: [
-      '와일드피치는 볼 하나와 함께 모든 주자를 한 칸씩 옮겨요.',
-      '주자가 두 칸 이상 갔다면, 와일드피치를 누른 다음 "상황 고치기"에서 주자 자리와 들어온 점수를 맞춰 주세요.',
+      '와일드피치(투수가 빠뜨림)와 포일(포수가 놓침)은 볼 하나와 함께 모든 주자를 한 칸씩 옮겨요.',
+      '주자가 두 칸 이상 갔다면, 누른 다음 "상황 고치기"에서 주자 자리와 들어온 점수를 맞춰 주세요.',
     ],
   },
   fieldersChoice: {

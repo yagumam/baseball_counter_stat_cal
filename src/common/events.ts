@@ -10,6 +10,8 @@ export type PitchResult =
   | 'foul'
   | 'buntFoul'
   | 'wildPitch'
+  /** 포일(포수가 공을 놓침): 볼로 세고 주자가 한 칸씩 간다. 와일드피치와 달리 포수 탓이라 들어온 점수는 비자책이다. */
+  | 'passedBall'
   | 'hit'
   | 'reachedOnError'
   | 'out'
@@ -21,6 +23,7 @@ export const PITCH_RESULTS: readonly PitchResult[] = [
   'foul',
   'buntFoul',
   'wildPitch',
+  'passedBall',
   'hit',
   'reachedOnError',
   'out',

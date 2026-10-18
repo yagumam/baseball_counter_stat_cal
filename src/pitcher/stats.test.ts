@@ -32,6 +32,7 @@ import {
   strikeouts,
   walks,
   wildPitches,
+  passedBalls,
 } from './stats';
 
 const asGame = (label: string, events: PlayLogEvent[]): GameForStats => ({ label, replay: replayGame(events, settings()) });
@@ -272,6 +273,28 @@ describe('자책점 · 비자책점 · 평균자책점', () => {
     ]);
     expect(unearnedRuns(games).value).toBe(1);
     expect(earnedRuns(games).value).toBe(0);
+  });
+
+  it('3루 주자가 포일로 홈인: 실점 1 = 비자책 1, 와일드피치로 홈인하면 자책 1', () => {
+    const passed = asGames([appear('pitcher', { bases: [false, false, true] }), ...pitches('passedBall')]);
+    expect(runsAllowed(passed).value).toBe(1);
+    expect(unearnedRuns(passed).value).toBe(1);
+    expect(earnedRuns(passed).value).toBe(0);
+    const wild = asGames([appear('pitcher', { bases: [false, false, true] }), ...pitches('wildPitch')]);
+    expect(earnedRuns(wild).value).toBe(1);
+  });
+
+  it('포일 뒤 바로 상황 고치기로 넣은 점수도 비자책 (2루 주자도 홈까지)', () => {
+    const games = asGames([appear('pitcher', { bases: [false, true, false] }), ...pitches('passedBall'), adjust(1, 0, [false, false, false], 1)]);
+    expect(unearnedRuns(games).value).toBe(1);
+    expect(earnedRuns(games).value).toBe(0);
+  });
+
+  it('포일 수는 따로 세고, 스트라이크 비율에서는 볼로 센다: 포일 1 + 스트라이크 1 → 50.0%', () => {
+    const games = asGames([appear('pitcher', { bases: [true, false, false] }), ...pitches('passedBall', 'strike')]);
+    expect(passedBalls(games).value).toBe(1);
+    expect(wildPitches(games).value).toBe(0);
+    expect(strikeRate(games).display).toBe('50.0%');
   });
 
   it('실책으로 나간 주자가 뒤 타자 홈런에 들어오면 그 1점만 비자책: 실점 2 = 자책 1 + 비자책 1', () => {

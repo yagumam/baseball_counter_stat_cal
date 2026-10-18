@@ -558,8 +558,8 @@ button:focus-visible {
 /* 보조 투구 버튼 */
 .extra-buttons {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .pitch.extra {
@@ -569,7 +569,8 @@ button:focus-visible {
 }
 
 .pitch.extra strong {
-  font-size: 14px;
+  font-size: 12px;
+  letter-spacing: -0.03em;
   white-space: nowrap;
 }
 
@@ -698,6 +699,7 @@ button:focus-visible {
 
 .chip.buntFoul,
 .chip.wildPitch,
+.chip.passedBall,
 .chip.reachedOnError {
   background: var(--extra);
 }
@@ -999,7 +1001,7 @@ input:focus-visible {
   gap: 8px;
 }
 
-/* 가끔 쓰는 공 4개(병살 포함)를 한 줄에 */
+/* 가끔 쓰는 공 5개(병살 포함)를 한 줄에 */
 
 .pitch.extra small {
   white-space: nowrap;

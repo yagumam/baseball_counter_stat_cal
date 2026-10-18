@@ -447,7 +447,7 @@ export function mountApp(root: HTMLElement): void {
     const active = currentReplay()?.state;
     const runners = active ? active.bases.some(Boolean) : false;
     const key: TipKey | null =
-      runners && result === 'wildPitch' ? 'wildPitch' : runners && result === 'out' && active && active.outs < OUTS_PER_INNING - 1 ? 'fieldersChoice' : null;
+      runners && (result === 'wildPitch' || result === 'passedBall') ? 'wildPitch' : runners && result === 'out' && active && active.outs < OUTS_PER_INNING - 1 ? 'fieldersChoice' : null;
     if (key && !hasSeenTip(key)) {
       state.tip = { key, next: record };
       render();

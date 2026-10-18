@@ -139,13 +139,14 @@ export const MAIN_PITCH_BUTTONS: readonly PitchButton[] = [
 
 /** 가끔 누르는 공 */
 export const EXTRA_PITCH_BUTTONS: readonly PitchButton[] = [
-  { result: 'buntFoul', label: '번트 파울', hint: '2스트면 삼진' },
-  { result: 'wildPitch', label: '와일드피치', hint: '볼+주자 한 칸' },
-  { result: 'reachedOnError', label: '실책 출루', hint: '수비 실수 출루' },
+  { result: 'buntFoul', label: '번트 파울', hint: '2스트 삼진' },
+  { result: 'wildPitch', label: '와일드피치', hint: '볼+한 칸' },
+  { result: 'passedBall', label: '포일', hint: '포수 놓침' },
+  { result: 'reachedOnError', label: '실책 출루', hint: '수비 실수' },
 ];
 
 /** 병살: 친 공으로 타자와 주자 한 명이 함께 아웃 */
-export const DOUBLE_PLAY_BUTTON = { label: '병살', hint: '타자+주자 아웃' } as const;
+export const DOUBLE_PLAY_BUTTON = { label: '병살', hint: '타자+주자' } as const;
 
 export const HIT_BUTTONS: readonly { hitType: HitType; label: string; hint: string }[] = [
   { hitType: 'single', label: '1루타', hint: '1루까지' },
@@ -241,6 +242,7 @@ export const PITCH_LABEL: Record<PitchResult, string> = {
   foul: '파울',
   buntFoul: '번트 파울',
   wildPitch: '와일드피치',
+  passedBall: '포일',
   hit: '안타',
   reachedOnError: '실책 출루',
   out: '아웃',

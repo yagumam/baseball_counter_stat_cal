@@ -237,7 +237,7 @@ export interface ChartPoint {
 export function zonePoints(pas: readonly ScopedPlateAppearance[]): ChartPoint[] {
   const kindOf = (p: PitchEvent): string => {
     if (p.result === 'hit' || p.result === 'out' || p.result === 'reachedOnError') return 'inPlay';
-    if (p.result === 'ball' || p.result === 'wildPitch' || p.result === 'hitByPitch') return 'ball';
+    if (p.result === 'ball' || p.result === 'wildPitch' || p.result === 'passedBall' || p.result === 'hitByPitch') return 'ball';
     return 'strike';
   };
   return pas.flatMap((s) => s.pa.pitches.filter((p) => p.zone).map((p) => ({ x: p.zone!.x, y: p.zone!.y, kind: kindOf(p) })));

@@ -71,6 +71,7 @@ const RESULT_CHOICES: readonly { result: PitchResult; hitType?: HitType; label: 
   { result: 'foul', label: PITCH_LABEL.foul },
   { result: 'buntFoul', label: PITCH_LABEL.buntFoul },
   { result: 'wildPitch', label: PITCH_LABEL.wildPitch },
+  { result: 'passedBall', label: PITCH_LABEL.passedBall },
   { result: 'hitByPitch', label: PITCH_LABEL.hitByPitch },
   ...HIT_BUTTONS.map((b) => ({ result: 'hit' as const, hitType: b.hitType, label: b.label })),
   { result: 'out', label: PITCH_LABEL.out },

@@ -208,7 +208,8 @@ interface PitchApplied {
 export function applyPitch(count: Count, result: PitchResult): PitchApplied {
   switch (result) {
     case 'ball':
-    case 'wildPitch': {
+    case 'wildPitch':
+    case 'passedBall': {
       const balls = count.balls + 1;
       return balls >= BALLS_FOR_WALK
         ? { next: count, outcome: 'walk' }
@@ -506,6 +507,11 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     pa.timeline.push(event);
     pa.pitches.push(event);
     if (event.result === 'wildPitch') applyAdvance(s, advanceRunners(s.runners, 1), pa);
+    // 포일로 들어온 점수는 비자책이다 (공식 야구 규칙 9.16(a)). 이어서 고친 점수도 같은 플레이로 본다.
+    if (event.result === 'passedBall') {
+      applyAdvance(s, advanceRunners(s.runners, 1), pa, true);
+      s.errorPending = true;
+    }
     const applied = applyPitch(pa.count, event.result);
     if (!applied.outcome) {
       pa.count = applied.next;

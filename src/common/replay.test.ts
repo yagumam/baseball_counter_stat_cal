@@ -323,6 +323,25 @@ describe('지난 공 고치기', () => {
   });
 });
 
+describe('포일', () => {
+  it('볼 하나로 세고 주자가 모두 한 칸씩 간다: 1·3루 → 2루, 1점', () => {
+    const r = asPitcher(adjust(1, 0, [true, false, true]), ...pitches('passedBall'));
+    expect(r.state?.count).toEqual({ balls: 1, strikes: 0 });
+    expect(r.state?.bases).toEqual([false, true, false]);
+    expect(r.plateAppearances[0].runs).toBe(1);
+    expect(r.plateAppearances[0].unearnedRuns).toBe(1);
+  });
+
+  it('볼 3개 뒤 포일이면 볼넷', () => {
+    expect(asPitcher(...pitches('ball', 'ball', 'ball', 'passedBall')).plateAppearances[0].outcome).toBe('walk');
+  });
+
+  it('수비 실책(E)으로 세지 않는다', () => {
+    const r = asPitcher(adjust(1, 0, [true, false, false]), ...pitches('passedBall'));
+    expect(r.halves.get('1T')?.errors).toBe(0);
+  });
+});
+
 describe('미니게임 (장면 설정 없이 1회초부터)', () => {
   const mini = (battingFirst: 'us' | 'them', ...events: PlayLogEvent[]) => replayGame(events, { battingFirst, miniGame: true });
   const threeOuts = () => pitches('out', 'out', 'out');
