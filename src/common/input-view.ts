@@ -22,6 +22,8 @@ import {
   ROLE_LABEL,
   OTHER_RUNNER_OUT_LABEL,
   GAME_OVER_LABEL,
+  EXIT_REASON_LABEL,
+  REPLACE_REASON_BY_ROLE,
   MINI_GAME_LABEL,
   SCENE_END_BUTTON,
   RUNNER_BUTTONS,
@@ -69,7 +71,7 @@ export interface InputActions {
   resumeGame: () => void;
   openGames: () => void;
   openScoreboard: () => void;
-  scene: SceneSetupActions;
+  scene: Omit<SceneSetupActions, 'replaceReason'>;
   toggleDetail: () => void;
   playFielding: PlayFieldingActions;
   sheet: PitchSheetActions;
@@ -154,7 +156,7 @@ export function boardMessage(replay: GameReplay, miniGame: boolean): string {
     if (!lastScene) return '아이가 나오는 장면을 정하고 시작하세요.';
     const lastRun = replay.runnerEvents[replay.runnerEvents.length - 1];
     const scored = lastRun?.sceneId === lastScene.id && lastRun.kind === 'scored';
-    const reason = scored ? '아이 홈인!' : END_REASON[lastScene.endedBy ?? 'next'];
+    const reason = scored ? '아이 홈인!' : lastScene.exitReason ? EXIT_REASON_LABEL[lastScene.exitReason] : END_REASON[lastScene.endedBy ?? 'next'];
     return `장면 끝 (${reason}). 다음에 아이가 나오면 장면을 시작하세요.`;
   }
   // 지금 장면에서 기록한 것만 본다.
@@ -397,6 +399,8 @@ function childRunnerPad(state: ActiveState, chooser: Chooser, actions: InputActi
         h('button', { className: 'play', text: b.label, disabled: !enabled[b.action], onClick: () => actions.childRunner(b.action) }),
       ),
       h('button', { className: 'play', text: OTHER_RUNNER_OUT_LABEL, disabled: !hasOthers, onClick: () => actions.choose('otherRunner') }),
+      // 대주자가 나가면 아이의 주루 장면이 끝난다. 베이스의 주자는 대주자로 남는다.
+      h('button', { className: 'play', text: EXIT_REASON_LABEL.pinchRunner, onClick: () => actions.scene.exit?.('pinchRunner') }),
       h('button', { className: 'play edit', text: '상황 고치기', onClick: onEdit }),
     ]),
   ]);
@@ -516,6 +520,7 @@ function controls(model: InputModel, actions: InputActions): HTMLElement {
       ...actions.scene,
       cancel: canClose ? actions.scene.cancel : null,
       exit: state ? actions.scene.exit : null,
+      replaceReason: state ? REPLACE_REASON_BY_ROLE[state.role] : null,
       endGame: replay.scenes.length > 0 ? actions.scene.endGame : null,
     };
     return h('div', { className: 'controls' }, [

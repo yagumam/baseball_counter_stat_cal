@@ -5,7 +5,7 @@ import { countLabel } from './count';
 import { h } from './dom';
 import { MAX_RUNS, Team, UndoableEvent } from './events';
 import { GAME_TYPE_LABEL, GameInfo, dateLabel, opponentLabel, orderLabel, ourTeamLabel } from './game';
-import { ACTOR_LABEL, GAME_RESULT_LABEL, RUNNER_EVENT_LABEL, SCORE_CELL_LABEL, TOTAL_FIELD_LABEL, eventLabel, outcomeLabel, sceneTitle } from './labels';
+import { ACTOR_LABEL, EXIT_REASON_LABEL, GAME_RESULT_LABEL, RUNNER_EVENT_LABEL, SCORE_CELL_LABEL, TOTAL_FIELD_LABEL, eventLabel, outcomeLabel, sceneTitle } from './labels';
 import { popup } from './popup';
 import { EditDetailOptions, EventEditActions, eventEditPopup } from './event-edit-view';
 import { LineScore } from './line-score';
@@ -42,7 +42,7 @@ function sceneBlock(scene: Scene, replay: GameReplay, onEdit: (event: UndoableEv
   const start = `시작: ${scene.outs}아웃 · ${basesLabel(scene.bases)}${scene.count.balls || scene.count.strikes ? ` · ${countLabel(scene.count)}` : ''}`;
   return h('section', { className: 'scene-block' }, [
     h('h2', { className: 'inning-title', text: sceneTitle(scene.role, scene.inning, scene.half, scene.position) }),
-    h('p', { className: 'sub', text: `${start}${scene.endedBy ? ` · 끝: ${END_LABEL[scene.endedBy]}` : ' · 진행 중'}` }),
+    h('p', { className: 'sub', text: `${start}${scene.endedBy ? ` · 끝: ${scene.exitReason ? EXIT_REASON_LABEL[scene.exitReason] : END_LABEL[scene.endedBy]}` : ' · 진행 중'}` }),
     runs.length > 0
       ? h('p', { className: 'chips' }, runs.map((e) => h('span', { className: 'chip runner', text: `아이 ${RUNNER_EVENT_LABEL[e.kind]} (${e.inning}회)` })))
       : null,

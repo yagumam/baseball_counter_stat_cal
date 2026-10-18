@@ -7,6 +7,7 @@ import {
   Bases,
   ChildPosition,
   ExitEvent,
+  ExitReason,
   GameEndEvent,
   HitType,
   PitchEvent,
@@ -90,8 +91,8 @@ export function appear(role: Role, options: AppearanceOptions = {}): AppearanceE
   };
 }
 
-export function exit(): ExitEvent {
-  return { kind: 'exit', ...base() };
+export function exit(reason?: ExitReason): ExitEvent {
+  return { kind: 'exit', ...base(), ...(reason ? { reason } : {}) };
 }
 
 export function score(team: Team, inning: number, runs: number): ScoreEvent {

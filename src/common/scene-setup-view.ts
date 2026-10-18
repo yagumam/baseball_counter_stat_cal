@@ -5,9 +5,9 @@ import { BASE_NAMES } from './bases';
 import { MAX_BALLS_IN_COUNT, MAX_STRIKES_IN_COUNT, OUTS_PER_INNING } from './count';
 import { diamond } from './diamond';
 import { h } from './dom';
-import { BaseIndex, Bases, MAX_INNING, POSITIONS, Position, ROLES, Role, Team } from './events';
+import { BaseIndex, Bases, ExitReason, MAX_INNING, POSITIONS, Position, ROLES, Role, Team } from './events';
 import { halfForRole, halfInningLabel, nextInningFor } from './innings';
-import { POSITION_LABEL, ROLE_LABEL, SCENE_END_BUTTON } from './labels';
+import { EXIT_REASON_LABEL, POSITION_LABEL, ROLE_LABEL, SCENE_END_BUTTON } from './labels';
 import { GameReplay } from './replay';
 
 export interface SceneDraft {
@@ -26,7 +26,10 @@ export interface SceneSetupActions {
   changeRole: (role: Role) => void;
   start: (draft: SceneDraft) => void;
   cancel: (() => void) | null;
-  exit: (() => void) | null;
+  /** 장면 끝내기. 까닭이 있으면 교체(대주자·대타·투수 교체·수비 교체)로 남긴다. */
+  exit: ((reason?: ExitReason) => void) | null;
+  /** 지금 역할에서 고를 수 있는 교체 까닭. 진행 중인 장면이 없으면 null */
+  replaceReason: ExitReason | null;
   /** 경기 기록 마치기 (기록이 하나라도 있을 때) */
   endGame: (() => void) | null;
 }
@@ -179,9 +182,17 @@ export function sceneSetupView(
       actions.cancel ? h('button', { className: 'secondary', text: '닫기', onClick: actions.cancel }) : null,
       h('button', { className: 'primary', text: '이 장면으로 시작', disabled: missingPosition, onClick: () => actions.start(draft) }),
     ]),
+    // 아이가 빠지는 교체: 지금 역할에 맞는 교체(주자면 대주자, 타석이면 대타 …)를 바로 고른다.
+    actions.exit && actions.replaceReason
+      ? h('button', {
+          className: 'secondary danger replace-button',
+          text: EXIT_REASON_LABEL[actions.replaceReason],
+          onClick: () => actions.exit?.(actions.replaceReason ?? undefined),
+        })
+      : null,
     actions.exit || actions.endGame
       ? h('div', { className: 'confirm-buttons scene-end-buttons' }, [
-          actions.exit ? h('button', { className: 'secondary danger', text: SCENE_END_BUTTON.exit, onClick: actions.exit }) : null,
+          actions.exit ? h('button', { className: 'secondary danger', text: SCENE_END_BUTTON.exit, onClick: () => actions.exit?.() }) : null,
           actions.endGame ? h('button', { className: 'secondary', text: SCENE_END_BUTTON.gameEnd, onClick: actions.endGame }) : null,
         ])
       : null,

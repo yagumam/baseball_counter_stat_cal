@@ -6,6 +6,7 @@ import { BASE_NAMES, STEAL_NAMES, basesLabel } from './bases';
 import {
   BatterHand,
   BattedBallStrength,
+  ExitReason,
   BattedBallType,
   HitType,
   FieldingCredit,
@@ -273,6 +274,22 @@ export const OTHER_RUNNER_OUT_LABEL = '다른 주자 아웃';
 
 /** 경기 끝 화면 단추 */
 export const GAME_OVER_LABEL = { resume: '다시 이어서 기록', result: '경기 결과 보기' } as const;
+
+/** 아이가 교체된 까닭 (장면 바꾸기 · 우리 아이 주루의 교체 단추, 장면별 기록의 끝 표시) */
+export const EXIT_REASON_LABEL: Record<ExitReason, string> = {
+  pinchRunner: '대주자로 교체',
+  pinchHitter: '대타로 교체',
+  pitchingChange: '투수 교체 (내려옴)',
+  defensiveChange: '수비 교체',
+};
+
+/** 지금 역할에서 아이가 빠질 때의 교체 까닭 (주자면 대주자, 타석이면 대타 …) */
+export const REPLACE_REASON_BY_ROLE: Record<Role, ExitReason> = {
+  runner: 'pinchRunner',
+  batter: 'pinchHitter',
+  pitcher: 'pitchingChange',
+  fielder: 'defensiveChange',
+};
 
 /** 장면 바꾸기 화면 아래 단추: 아이가 빠짐 / 경기 기록을 마침 */
 export const SCENE_END_BUTTON = { exit: '교체 아웃/기록 종료', gameEnd: '경기 끝 (기록 마치기)' } as const;

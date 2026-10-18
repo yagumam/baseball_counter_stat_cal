@@ -19,6 +19,7 @@ import {
   TotalField,
   Venue,
   BatterHand,
+  ExitReason,
   isLogEvent,
 } from './events';
 
@@ -220,8 +221,8 @@ export function addAppearance(game: Game, input: AppearanceInput): Game {
   });
 }
 
-export function addExit(game: Game): Game {
-  return append(game, { kind: 'exit', ...base() });
+export function addExit(game: Game, reason?: ExitReason): Game {
+  return append(game, { kind: 'exit', ...base(), ...(reason ? { reason } : {}) });
 }
 
 export function addGameEnd(game: Game): Game {

@@ -105,3 +105,18 @@ describe('경기 구분과 통계', () => {
     expect(isGame(ofType('mini'))).toBe(true);
   });
 });
+
+describe('교체 까닭 저장 검사', () => {
+  const withExit = (extra: Record<string, unknown>): unknown => ({
+    id: 'g',
+    createdAt: '2026-10-18T00:00:00.000Z',
+    author: '나',
+    events: [{ kind: 'exit', id: 'x', createdAt: '2026-10-18T00:00:00.000Z', author: '나', ...extra }],
+  });
+
+  it('까닭이 없거나 정해진 값이면 읽고, 모르는 값이면 거절한다', () => {
+    expect(isGame(withExit({}))).toBe(true);
+    expect(isGame(withExit({ reason: 'pinchRunner' }))).toBe(true);
+    expect(isGame(withExit({ reason: 'injury' }))).toBe(false);
+  });
+});

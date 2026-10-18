@@ -10,7 +10,7 @@ import { pitcherReport } from './pitcher/report';
 import { batterReport } from './batter/report';
 import { fielderReport } from './fielder/report';
 import { h, segmented } from './common/dom';
-import { BaseIndex, BatterHand, FieldingCredit, GAME_TYPES, GameType, HitType, OutType, PLACE_MAX_LENGTH, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
+import { BaseIndex, BatterHand, ExitReason, FieldingCredit, GAME_TYPES, GameType, HitType, OutType, PLACE_MAX_LENGTH, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
 import { outTypeOptions } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
@@ -656,9 +656,10 @@ export function mountApp(root: HTMLElement): void {
         state.sceneDraft = null;
         render();
       },
-      exit: () => {
+      exit: (reason?: ExitReason) => {
         state.sceneDraft = null;
-        updateCurrent((g) => addExit(g));
+        state.chooser = null;
+        updateCurrent((g) => addExit(g, reason));
       },
       endGame: () => {
         state.sceneDraft = null;
