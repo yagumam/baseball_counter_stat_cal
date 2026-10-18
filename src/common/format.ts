@@ -27,6 +27,13 @@ export function formatEra(value: number | null): string {
   return value === null ? NO_VALUE_DISPLAY : value.toFixed(ERA_DECIMALS);
 }
 
+const RATIO_DECIMALS = 2;
+
+/** 두 수의 비(볼삼비 등) 표시. 예: 2.5 → "2.50" */
+export function formatRatio(value: number | null): string {
+  return value === null ? NO_VALUE_DISPLAY : value.toFixed(RATIO_DECIMALS);
+}
+
 /** 던진 이닝 표시. 잡은 아웃 수로 받는다. 예: 7 → "2 1/3", 6 → "2", 1 → "1/3" */
 export function formatInningsFromOuts(outs: number): string {
   const whole = Math.floor(outs / OUTS_PER_INNING);

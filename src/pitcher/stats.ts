@@ -29,6 +29,7 @@ import {
   speedsOf,
   sprayPoints,
   withOutcome,
+  outcomeRatioOf,
   zonePoints,
 } from '../common/stat-base';
 import { BATTER_HAND_LABEL, PITCH_TYPE_LABEL } from '../common/labels';
@@ -107,6 +108,11 @@ export function walks(games: readonly GameForStats[]): Calculation {
 
 export function hitByPitches(games: readonly GameForStats[]): Calculation {
   return tally('몸에 맞는 공', '몸에 맞는 공으로 끝난 타석 수', withOutcome(faced(games), 'hitByPitch'));
+}
+
+/** 볼삼비(투수) = 삼진 ÷ 볼넷 (K/BB). 볼넷 하나 줄 때 삼진을 몇 개 잡는지 */
+export function strikeoutWalkRatio(games: readonly GameForStats[]): Calculation {
+  return outcomeRatioOf(faced(games), '볼삼비 (삼진 ÷ 볼넷)', { label: '삼진', outcome: 'strikeout' }, { label: '볼넷', outcome: 'walk' });
 }
 
 export function hitsAllowed(games: readonly GameForStats[]): Calculation {
@@ -327,6 +333,7 @@ export function summarize(games: readonly GameForStats[]): PitcherSummary {
           battersFaced(games),
           strikeouts(games),
           walks(games),
+          strikeoutWalkRatio(games),
           hitByPitches(games),
           hitsAllowed(games),
           extraBaseHitsAllowed(games),

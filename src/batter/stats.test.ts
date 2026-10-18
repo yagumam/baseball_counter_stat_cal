@@ -26,6 +26,7 @@ import {
   slugging,
   stolenBases,
   strikeouts,
+  walkStrikeoutRatio,
 } from './stats';
 
 const asGame = (events: PlayLogEvent[]): GameForStats => ({ label: '10월 4일 ○○전', replay: replayGame(events, settings()) });
@@ -190,5 +191,26 @@ describe('희생타 · 진루타 · 타점', () => {
     expect(sf.runsOnResult).toBe(1);
     expect(sh.runs).toBe(0);
     expect(sacGame.replay.scenes.length).toBe(5);
+  });
+});
+
+describe('볼삼비 (타자)', () => {
+  // 아이 타석 하나씩 따로 등장: 볼넷 2, 삼진 4
+  const plate = (results: Parameters<typeof pitches>): PlayLogEvent[] => [appear('batter'), ...pitches(...results)];
+  const walk = plate(['ball', 'ball', 'ball', 'ball']);
+  const strikeout = plate(['strike', 'strike', 'strike']);
+  const gamesOf = (...plates: PlayLogEvent[][]): GameForStats[] => [{ label: '10월 18일 ○○전', replay: replayGame(plates.flat(), settings()) }];
+
+  it('볼넷 ÷ 삼진: 볼넷 2 · 삼진 4 → 0.50', () => {
+    const ratio = walkStrikeoutRatio(gamesOf(walk, walk, strikeout, strikeout, strikeout, strikeout));
+    expect(ratio.expression).toBe('2 ÷ 4');
+    expect(ratio.display).toBe('0.50');
+  });
+
+  it('삼진이 0이면 계산할 수 없음 (-)', () => {
+    const ratio = walkStrikeoutRatio(gamesOf(walk));
+    expect(ratio.value).toBeNull();
+    expect(ratio.display).toBe('-');
+    expect(ratio.note).toBe('삼진이 0이라 계산할 수 없음');
   });
 });
