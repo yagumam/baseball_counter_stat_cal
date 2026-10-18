@@ -5,7 +5,7 @@
 import { batterAnalysisView } from './batter/analysis-view';
 import { AnalysisScope, AnalysisTab, ReportFormat, reportBar } from './common/analysis-ui';
 import { blocksToPdf, elementToJpeg } from './common/report-export';
-import { ReportModel, ReportSection, reportBlocks, reportPdfName, screenJpegName } from './common/report-view';
+import { REPORT_TOAST_MS, ReportModel, ReportSection, reportBlocks, reportPdfName, reportSavedMessage, screenJpegName } from './common/report-view';
 import { pitcherReport } from './pitcher/report';
 import { batterReport } from './batter/report';
 import { fielderReport } from './fielder/report';
@@ -169,6 +169,8 @@ interface State {
   gamePickerOpen: boolean;
   /** 분석 리포트를 만드는 중이면 그 형식 */
   reportBusy: ReportFormat | null;
+  /** 잠깐 보였다가 저절로 사라지는 알림 (리포트 저장 완료 등) */
+  toast: string | null;
 }
 
 const DETAIL_MODE_KEY = 'baseball-counter.pitch-detail';
@@ -297,6 +299,7 @@ export function mountApp(root: HTMLElement): void {
     analysisGameIds: latest ? [latest.id] : [],
     gamePickerOpen: false,
     reportBusy: null,
+    toast: null,
   };
 
   const currentGame = (): Game | undefined => state.games.find((g) => g.id === state.currentGameId);
@@ -898,6 +901,24 @@ export function mountApp(root: HTMLElement): void {
     };
   };
 
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** 잠깐 알림을 띄우고 정해진 시간이 지나면 저절로 지운다. 누르면 바로 닫힌다. */
+  const showToast = (text: string): void => {
+    clearTimeout(toastTimer);
+    state.toast = text;
+    toastTimer = setTimeout(() => {
+      state.toast = null;
+      render();
+    }, REPORT_TOAST_MS);
+  };
+
+  const closeToast = (): void => {
+    clearTimeout(toastTimer);
+    state.toast = null;
+    render();
+  };
+
   /** 분석 리포트 내려받기: 지금 화면 그대로(JPG) 또는 보고서(PDF) */
   const downloadReport = (format: ReportFormat): void => {
     if (state.reportBusy) return;
@@ -920,8 +941,8 @@ export function mountApp(root: HTMLElement): void {
     void made
       .then((file) => downloadFile(file.name, file.blob, file.type))
       .then((result) => {
-        state.notice =
-          result === 'saved' ? '리포트를 저장했어요. 휴대폰의 "다운로드" 폴더에 있어요.' : result === 'declined' ? '내려받기를 취소했습니다.' : '이 화면에서는 파일을 내려받을 수 없습니다.';
+        if (result === 'saved') showToast(reportSavedMessage(format));
+        else state.notice = result === 'declined' ? '내려받기를 취소했습니다.' : '이 화면에서는 파일을 내려받을 수 없습니다.';
       })
       .catch(() => {
         state.notice = '리포트를 만들지 못했어요. 다시 해 보세요.';
@@ -1182,6 +1203,7 @@ export function mountApp(root: HTMLElement): void {
       };
       children.splice(1, 0, h('p', { className: 'notice', text: state.notice, onClick: dismiss }));
     }
+    if (state.toast) children.push(h('p', { className: 'toast', text: state.toast, attrs: { role: 'status', 'aria-live': 'polite' }, onClick: closeToast }));
     if (state.tutorialStep !== null) children.push(tutorialView(state.tutorialStep, tutorialActions));
     // 손 설정에 따라 CSS가 자주 누르는 단추를 엄지 쪽으로 옮긴다.
     root.dataset.hand = state.hand;

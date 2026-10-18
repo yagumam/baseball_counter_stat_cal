@@ -101,6 +101,14 @@ export function paginate(heights: readonly number[], keepWithNext: readonly bool
   return pages;
 }
 
+/** 리포트를 저장한 뒤 잠깐 띄웠다가 저절로 사라지는 알림을 보여주는 시간 */
+export const REPORT_TOAST_MS = 4000;
+
+/** 리포트를 저장했다는 알림 문구 */
+export function reportSavedMessage(format: 'jpg' | 'pdf'): string {
+  return `${format === 'jpg' ? '분석 화면(JPG)을' : '분석 보고서(PDF)를'} 만들었어요. 휴대폰의 "다운로드" 폴더에 있어요.`;
+}
+
 /** 내려받는 파일 이름에 쓰는 오늘 날짜 */
 function stamp(today: string): string {
   return today.replace(/-/g, '');
