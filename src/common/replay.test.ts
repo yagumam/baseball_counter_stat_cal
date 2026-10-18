@@ -323,6 +323,25 @@ describe('지난 공 고치기', () => {
   });
 });
 
+describe('교체', () => {
+  it('대주자로 교체: 장면이 끝나고 까닭이 남으며, 뒤에 들어온 점수는 아이 득점이 아니다', () => {
+    const r = replayGame([appear('runner', { childBase: 1 }), exit('pinchRunner')], settings('us'));
+    expect(r.state).toBeNull();
+    expect(r.scenes[0]).toMatchObject({ endedBy: 'exit', exitReason: 'pinchRunner' });
+    expect(r.runnerEvents.map((e) => e.kind)).not.toContain('stranded');
+  });
+
+  it('대타로 교체: 타석 도중이면 끝나지 않은 타석으로 남는다', () => {
+    const r = replayGame([appear('batter'), ...pitches('ball', 'strike'), exit('pinchHitter')], settings('us'));
+    expect(r.plateAppearances[0].outcome).toBe('sceneEnded');
+    expect(r.scenes[0].exitReason).toBe('pinchHitter');
+  });
+
+  it('까닭 없이 끝내면(교체 아웃/기록 종료) 까닭은 없다', () => {
+    expect(asPitcher(exit()).scenes[0]).toMatchObject({ endedBy: 'exit', exitReason: null });
+  });
+});
+
 describe('포일', () => {
   it('볼 하나로 세고 주자가 모두 한 칸씩 간다: 1·3루 → 2루, 1점', () => {
     const r = asPitcher(adjust(1, 0, [true, false, true]), ...pitches('passedBall'));

@@ -39,6 +39,7 @@ import {
   AdjustEvent,
   AppearanceEvent,
   BaseIndex,
+  ExitReason,
   BatterEvent,
   BatterHand,
   Bases,
@@ -149,6 +150,8 @@ export interface Scene {
   readonly position: Position | null;
   /** 아직 진행 중이면 null */
   readonly endedBy: SceneEnd | null;
+  /** 교체로 끝났으면 그 까닭 (대주자·대타·투수 교체·수비 교체). 까닭 없이 끝났으면 null */
+  readonly exitReason: ExitReason | null;
 }
 
 /** 지금 진행 중인 장면의 상황 */
@@ -471,6 +474,7 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
         childBase,
         position: event.position ?? null,
         endedBy: null,
+        exitReason: null,
       },
       false,
     );
@@ -495,6 +499,7 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
         childBase: null,
         position: null,
         endedBy: null,
+        exitReason: null,
       },
       role === 'batter',
     );
@@ -668,6 +673,7 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     const s = scene as OpenScene | null;
     if (!s) continue;
     if (event.kind === 'exit') {
+      s.record.exitReason = event.reason ?? null;
       endScene(s, 'exit');
       continue;
     }

@@ -4,7 +4,7 @@
 import { Calculation, SourceRef, safeDivide, term } from './calculation';
 import { Count, compareCounts, countKey } from './count';
 import { BattedBall, BattedBallType, HIT_BASES, OutType, PitchEvent, PitchResult, PlayKind } from './events';
-import { NO_VALUE_DISPLAY, formatPercent, formatRate } from './format';
+import { NO_VALUE_DISPLAY, formatPercent, formatRate, formatRatio } from './format';
 import { Actor, GameReplay, PlateAppearance, PlateAppearanceOutcome, isInterrupted } from './replay';
 
 /** 분석할 경기 하나 */
@@ -95,6 +95,30 @@ export function averageOf(pas: readonly ScopedPlateAppearance[], labels: RateLab
     value,
     display: formatRate(value),
     note: value === null ? '타수가 0이라 계산할 수 없음' : undefined,
+  };
+}
+
+export interface OutcomeCount {
+  readonly label: string;
+  readonly outcome: PlateAppearanceOutcome;
+}
+
+/**
+ * 볼삼비: 두 결과로 끝난 타석 수의 비.
+ * 투수는 삼진 ÷ 볼넷(K/BB), 타자는 볼넷 ÷ 삼진(BB/K)으로, 둘 다 높을수록 좋다.
+ */
+export function outcomeRatioOf(pas: readonly ScopedPlateAppearance[], title: string, top: OutcomeCount, bottom: OutcomeCount): Calculation {
+  const numerator = term(top.label, withOutcome(pas, top.outcome));
+  const denominator = term(bottom.label, withOutcome(pas, bottom.outcome));
+  const value = safeDivide(numerator.value, denominator.value);
+  return {
+    title,
+    formula: `${top.label} ÷ ${bottom.label} (높을수록 좋아요)`,
+    terms: [numerator, denominator],
+    expression: `${numerator.value} ÷ ${denominator.value}`,
+    value,
+    display: formatRatio(value),
+    note: value === null ? `${bottom.label}이 0이라 계산할 수 없음` : undefined,
   };
 }
 

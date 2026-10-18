@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatInningsFromOuts, formatPercent, formatRate } from './format';
+import { formatInningsFromOuts, formatPercent, formatRate, formatRatio } from './format';
 
 describe('표시 형식', () => {
   it('비율은 소수점 셋째 자리로 보여준다', () => {
@@ -23,5 +23,13 @@ describe('표시 형식', () => {
     expect(formatInningsFromOuts(1)).toBe('1/3');
     expect(formatInningsFromOuts(6)).toBe('2');
     expect(formatInningsFromOuts(7)).toBe('2 1/3');
+  });
+});
+
+describe('비 표시', () => {
+  it('소수점 둘째 자리, 값 없으면 -', () => {
+    expect(formatRatio(2.5)).toBe('2.50');
+    expect(formatRatio(1 / 3)).toBe('0.33');
+    expect(formatRatio(null)).toBe('-');
   });
 });

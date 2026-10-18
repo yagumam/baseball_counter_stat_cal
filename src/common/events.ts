@@ -278,8 +278,20 @@ export interface GameEndEvent extends EventBase {
 }
 
 /** 우리 아이가 교체되어 빠짐. 지금 장면의 기록을 끝낸다. */
+/**
+ * 아이가 교체된 까닭. 없으면(예전 기록·"교체 아웃/기록 종료") 그냥 장면이 끝난 것으로 본다.
+ * - pinchRunner: 주자인 아이 대신 대주자가 나감 (베이스의 주자는 대주자로 남는다)
+ * - pinchHitter: 아이 차례에 대타가 나감
+ * - pitchingChange: 투수인 아이가 마운드에서 내려옴
+ * - defensiveChange: 수비하던 아이가 다른 선수와 바뀜
+ */
+export type ExitReason = 'pinchRunner' | 'pinchHitter' | 'pitchingChange' | 'defensiveChange';
+
+export const EXIT_REASONS: readonly ExitReason[] = ['pinchRunner', 'pinchHitter', 'pitchingChange', 'defensiveChange'];
+
 export interface ExitEvent extends EventBase {
   readonly kind: 'exit';
+  readonly reason?: ExitReason;
 }
 
 /** 스코어보드에 직접 넣은 점수. 같은 팀·이닝은 마지막 값을 쓴다. */
@@ -495,6 +507,7 @@ export function isLogEvent(value: unknown): value is LogEvent {
         (value.position === undefined || POSITIONS.includes(value.position as Position))
       );
     case 'exit':
+      return value.reason === undefined || EXIT_REASONS.includes(value.reason as ExitReason);
     case 'gameEnd':
       return true;
     case 'batter':

@@ -1,16 +1,17 @@
-// 경기 결과 화면 (공통): 스코어보드와 장면별 기록
+// 경기 결과 화면 (공통): 스코어보드와 이닝별 기록
 
 import { basesLabel } from './bases';
 import { countLabel } from './count';
 import { h } from './dom';
-import { MAX_RUNS, Team, UndoableEvent } from './events';
+import { Half, MAX_RUNS, Team, UndoableEvent } from './events';
+import { halfInningLabel, halfOrder } from './innings';
 import { GAME_TYPE_LABEL, GameInfo, dateLabel, opponentLabel, orderLabel, ourTeamLabel } from './game';
-import { ACTOR_LABEL, GAME_RESULT_LABEL, RUNNER_EVENT_LABEL, SCORE_CELL_LABEL, TOTAL_FIELD_LABEL, eventLabel, outcomeLabel, sceneTitle } from './labels';
+import { ACTOR_LABEL, EXIT_REASON_LABEL, GAME_RESULT_LABEL, ROLE_LABEL, RUNNER_EVENT_LABEL, SCORE_CELL_LABEL, TOTAL_FIELD_LABEL, eventLabel, outcomeLabel, sceneTitle } from './labels';
 import { popup } from './popup';
 import { EditDetailOptions, EventEditActions, eventEditPopup } from './event-edit-view';
 import { LineScore } from './line-score';
 import { ScoreCellTarget, lineScoreTable } from './line-score-view';
-import { GameReplay, PlateAppearance, Scene, SceneEnd } from './replay';
+import { GameReplay, PlateAppearance, RunnerEvent, Scene, SceneEnd } from './replay';
 
 const END_LABEL: Record<SceneEnd, string> = {
   exit: '교체 아웃',
@@ -36,17 +37,70 @@ function paCard(pa: PlateAppearance, onEdit: (event: UndoableEvent) => void): HT
   ]);
 }
 
-function sceneBlock(scene: Scene, replay: GameReplay, onEdit: (event: UndoableEvent) => void): HTMLElement {
+/** 이닝(초·말) 하나에 모은 기록 */
+export interface InningGroup {
+  readonly inning: number;
+  readonly half: Half;
+  readonly plateAppearances: readonly PlateAppearance[];
+  readonly runnerEvents: readonly RunnerEvent[];
+  /** 이 초·말에서 시작한 장면 */
+  readonly started: readonly Scene[];
+  /** 이 초·말에서 끝난 장면 */
+  readonly ended: readonly Scene[];
+}
+
+/** 장면의 마지막 초·말: 마지막 타석(없으면 시작한 초·말) */
+function lastHalfOf(scene: Scene, replay: GameReplay): { inning: number; half: Half } {
   const pas = replay.plateAppearances.filter((pa) => pa.sceneId === scene.id);
-  const runs = replay.runnerEvents.filter((e) => e.sceneId === scene.id);
-  const start = `시작: ${scene.outs}아웃 · ${basesLabel(scene.bases)}${scene.count.balls || scene.count.strikes ? ` · ${countLabel(scene.count)}` : ''}`;
+  return pas[pas.length - 1] ?? scene;
+}
+
+/**
+ * 기록을 경기 순서(1회초 → 1회말 → 2회초 …)대로 초·말마다 묶는다.
+ * 투수 기록을 먼저 다 넣고 타자 기록을 나중에 넣어도, 여러 이닝을 이어 던진 장면도 이닝마다 나뉘어 보인다.
+ */
+export function inningGroups(replay: GameReplay): InningGroup[] {
+  const groups = new Map<number, { inning: number; half: Half; pas: PlateAppearance[]; runs: RunnerEvent[]; started: Scene[]; ended: Scene[] }>();
+  const groupOf = (inning: number, half: Half) => {
+    const key = halfOrder(inning, half);
+    const found = groups.get(key) ?? { inning, half, pas: [], runs: [], started: [], ended: [] };
+    groups.set(key, found);
+    return found;
+  };
+  for (const scene of replay.scenes) {
+    groupOf(scene.inning, scene.half).started.push(scene);
+    if (scene.endedBy) {
+      const last = lastHalfOf(scene, replay);
+      groupOf(last.inning, last.half).ended.push(scene);
+    }
+  }
+  for (const pa of replay.plateAppearances) groupOf(pa.inning, pa.half).pas.push(pa);
+  for (const e of replay.runnerEvents) groupOf(e.inning, e.half).runs.push(e);
+  return [...groups.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, g]) => ({ inning: g.inning, half: g.half, plateAppearances: g.pas, runnerEvents: g.runs, started: g.started, ended: g.ended }));
+}
+
+function sceneStartText(scene: Scene): string {
+  const count = scene.count.balls || scene.count.strikes ? ` · ${countLabel(scene.count)}` : '';
+  return `${sceneTitle(scene.role, scene.inning, scene.half, scene.position)} · 시작: ${scene.outs}아웃 · ${basesLabel(scene.bases)}${count}`;
+}
+
+function sceneEndText(scene: Scene): string {
+  const reason = scene.exitReason ? EXIT_REASON_LABEL[scene.exitReason] : END_LABEL[scene.endedBy ?? 'next'];
+  return `${ROLE_LABEL[scene.role]} 장면 끝: ${reason}`;
+}
+
+function inningBlock(group: InningGroup, onEdit: (event: UndoableEvent) => void): HTMLElement {
+  const roles = [...new Set(group.plateAppearances.map((pa) => pa.actor === 'opponent' ? '수비' : '공격'))].join(' · ');
   return h('section', { className: 'scene-block' }, [
-    h('h2', { className: 'inning-title', text: sceneTitle(scene.role, scene.inning, scene.half, scene.position) }),
-    h('p', { className: 'sub', text: `${start}${scene.endedBy ? ` · 끝: ${END_LABEL[scene.endedBy]}` : ' · 진행 중'}` }),
-    runs.length > 0
-      ? h('p', { className: 'chips' }, runs.map((e) => h('span', { className: 'chip runner', text: `아이 ${RUNNER_EVENT_LABEL[e.kind]} (${e.inning}회)` })))
+    h('h2', { className: 'inning-title', text: `${halfInningLabel(group.inning, group.half)}${roles ? ` · ${roles}` : ''}` }),
+    ...group.started.map((scene) => h('p', { className: 'sub', text: sceneStartText(scene) })),
+    group.runnerEvents.length > 0
+      ? h('p', { className: 'chips' }, group.runnerEvents.map((e) => h('span', { className: 'chip runner', text: `아이 ${RUNNER_EVENT_LABEL[e.kind]}` })))
       : null,
-    ...pas.map((pa) => paCard(pa, onEdit)),
+    ...group.plateAppearances.map((pa) => paCard(pa, onEdit)),
+    ...group.ended.map((scene) => h('p', { className: 'sub', text: sceneEndText(scene) })),
   ]);
 }
 
@@ -68,7 +122,7 @@ export interface ResultActions {
   saveCell: (draft: ScoreCellDraft) => void;
   resetCell: (draft: ScoreCellDraft) => void;
   openChildRecord: () => void;
-  /** 장면별 기록에서 기록 하나를 눌러 고치기 (null이면 닫기) */
+  /** 이닝별 기록에서 기록 하나를 눌러 고치기 (null이면 닫기) */
   editEvent: (event: UndoableEvent | null) => void;
   eventEdit: EventEditActions;
 }
@@ -126,11 +180,11 @@ export interface ResultModel {
   readonly editDetail: EditDetailOptions;
 }
 
-/** 경기 결과: 스코어보드 · 내 아이 기록 보기 · 장면별 기록 */
+/** 경기 결과: 스코어보드 · 내 아이 기록 보기 · 이닝별 기록 */
 export function recordsView(model: ResultModel, actions: ResultActions): HTMLElement {
   const { info, replay, score } = model;
   const names = { us: ourTeamLabel(info), them: opponentLabel(info.opponent) };
-  const scenes = [...replay.scenes].reverse();
+  const groups = inningGroups(replay);
   return h('section', { className: 'records' }, [
     h('button', { className: 'link-button back-button', text: GAME_RESULT_LABEL.back, onClick: actions.back }),
     h('p', { className: 'game-title', text: `${dateLabel(info.date)} · ${names.us} vs ${names.them} · ${GAME_TYPE_LABEL[info.gameType]} · ${orderLabel(info)}${info.place.trim() ? ` · ${info.place.trim()}` : ''}` }),
@@ -145,10 +199,10 @@ export function recordsView(model: ResultModel, actions: ResultActions): HTMLEle
       actions.editCell({ team, target, value: values[team], manual: score.manualTotals[team][target], fresh: true });
     }),
     h('button', { className: 'primary child-record', text: GAME_RESULT_LABEL.childRecord, onClick: actions.openChildRecord }),
-    h('h2', { className: 'inning-title', text: '장면별 기록' }),
-    scenes.length === 0 ? h('p', { className: 'empty', text: '아직 기록이 없습니다. 기록 입력에서 아이가 나오는 장면을 시작하세요.' }) : null,
-    scenes.length > 0 ? h('p', { className: 'help', text: '공이나 기록을 누르면 고치거나 지울 수 있어요.' }) : null,
-    ...scenes.map((scene) => sceneBlock(scene, replay, actions.editEvent)),
+    h('h2', { className: 'inning-title', text: '이닝별 기록' }),
+    groups.length === 0 ? h('p', { className: 'empty', text: '아직 기록이 없습니다. 기록 입력에서 아이가 나오는 장면을 시작하세요.' }) : null,
+    groups.length > 0 ? h('p', { className: 'help', text: '기록한 순서와 상관없이 경기 순서(1회초 → 1회말 → 2회초 …)로 보여줘요. 공이나 기록을 누르면 고치거나 지울 수 있어요.' }) : null,
+    ...groups.map((group) => inningBlock(group, actions.editEvent)),
     model.cellDraft ? scoreCellPopup(model.cellDraft, names[model.cellDraft.team], actions) : null,
     model.editing ? eventEditPopup(model.editing, model.editDetail, actions.eventEdit) : null,
   ]);

@@ -26,6 +26,7 @@ import {
   sluggingOf,
   sprayPoints,
   withOutcome,
+  outcomeRatioOf,
   zonePoints,
 } from '../common/stat-base';
 
@@ -68,6 +69,11 @@ export function hitByPitches(games: readonly GameForStats[]): Calculation {
 
 export function strikeouts(games: readonly GameForStats[]): Calculation {
   return tally('삼진', '삼진으로 끝난 타석 수 (쓰리번트 아웃 포함)', withOutcome(batted(games), 'strikeout'));
+}
+
+/** 볼삼비(타자) = 볼넷 ÷ 삼진 (BB/K). 공을 잘 고르는지 */
+export function walkStrikeoutRatio(games: readonly GameForStats[]): Calculation {
+  return outcomeRatioOf(batted(games), '볼삼비 (볼넷 ÷ 삼진)', { label: '볼넷', outcome: 'walk' }, { label: '삼진', outcome: 'strikeout' });
 }
 
 /** 병살타: 아이가 친 공으로 아이와 주자 한 명이 함께 아웃된 타석 (타수에는 들어간다) */
@@ -271,6 +277,7 @@ export function summarize(games: readonly GameForStats[]): BatterSummary {
           walks(games),
           hitByPitches(games),
           strikeouts(games),
+          walkStrikeoutRatio(games),
           groundedIntoDoublePlays(games),
           runsBattedIn(games),
           sacrificeBunts(games),

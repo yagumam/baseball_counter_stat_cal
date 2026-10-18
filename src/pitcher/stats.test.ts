@@ -33,6 +33,7 @@ import {
   walks,
   wildPitches,
   passedBalls,
+  strikeoutWalkRatio,
 } from './stats';
 
 const asGame = (label: string, events: PlayLogEvent[]): GameForStats => ({ label, replay: replayGame(events, settings()) });
@@ -312,5 +313,24 @@ describe('자책점 · 비자책점 · 평균자책점', () => {
     const none = earnedRunAverage(asGames([appear('pitcher'), hit('homeRun')]));
     expect(none.value).toBeNull();
     expect(none.display).toBe('-');
+  });
+});
+
+describe('볼삼비 (투수)', () => {
+  const gamesOf = (events: PlayLogEvent[]): GameForStats[] => [{ label: '10월 18일 ○○전', replay: replayGame(events, settings()) }];
+  const k = pitches('strike', 'strike', 'strike');
+  const bb = pitches('ball', 'ball', 'ball', 'ball');
+
+  it('삼진 ÷ 볼넷: 삼진 3 · 볼넷 2 → 1.50', () => {
+    const ratio = strikeoutWalkRatio(gamesOf([appear('pitcher'), ...k, ...bb, ...k, ...bb, ...k]));
+    expect(ratio.expression).toBe('3 ÷ 2');
+    expect(ratio.display).toBe('1.50');
+  });
+
+  it('볼넷이 0이면 계산할 수 없음 (-), 둘 다 0이어도 마찬가지', () => {
+    expect(strikeoutWalkRatio(gamesOf([appear('pitcher'), ...k])).display).toBe('-');
+    const none = strikeoutWalkRatio(gamesOf([appear('pitcher')]));
+    expect(none.value).toBeNull();
+    expect(none.note).toBe('볼넷이 0이라 계산할 수 없음');
   });
 });
