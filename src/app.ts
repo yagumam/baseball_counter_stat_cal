@@ -120,7 +120,7 @@ interface State {
   sceneDraft: SceneDraft | null;
   /** 경기 결과에서 고치고 있는 스코어보드 칸 */
   cellDraft: ScoreCellDraft | null;
-  /** 경기 결과의 장면별 기록에서 고치고 있는 기록 */
+  /** 경기 결과의 이닝별 기록에서 고치고 있는 기록 */
   editingEvent: UndoableEvent | null;
   /** 고치고 있는 공의 투구 상세 */
   editDetail: PitchDetail;

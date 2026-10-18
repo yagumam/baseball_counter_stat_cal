@@ -275,7 +275,7 @@ export const OTHER_RUNNER_OUT_LABEL = '다른 주자 아웃';
 /** 경기 끝 화면 단추 */
 export const GAME_OVER_LABEL = { resume: '다시 이어서 기록', result: '경기 결과 보기' } as const;
 
-/** 아이가 교체된 까닭 (장면 바꾸기 · 우리 아이 주루의 교체 단추, 장면별 기록의 끝 표시) */
+/** 아이가 교체된 까닭 (장면 바꾸기 · 우리 아이 주루의 교체 단추, 이닝별 기록의 끝 표시) */
 export const EXIT_REASON_LABEL: Record<ExitReason, string> = {
   pinchRunner: '대주자로 교체',
   pinchHitter: '대타로 교체',

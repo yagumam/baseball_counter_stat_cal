@@ -501,7 +501,7 @@ function controls(model: InputModel, actions: InputActions): HTMLElement {
     return h('div', { className: 'controls' }, [
       h('section', { className: 'game-over' }, [
         h('p', { className: 'section-title', text: '이 경기 기록을 마쳤어요' }),
-        h('p', { className: 'help', text: '결과에서 스코어보드와 장면별 기록을 보고, 고칠 공이 있으면 눌러서 고칠 수 있어요.' }),
+        h('p', { className: 'help', text: '결과에서 스코어보드와 이닝별 기록을 보고, 고칠 공이 있으면 눌러서 고칠 수 있어요.' }),
         h('div', { className: 'confirm-buttons' }, [
           h('button', { className: 'secondary', text: GAME_OVER_LABEL.resume, onClick: actions.resumeGame }),
           h('button', { className: 'primary', text: GAME_OVER_LABEL.result, onClick: actions.openScoreboard }),
