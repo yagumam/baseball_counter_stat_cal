@@ -188,6 +188,11 @@ export function wildPitches(games: readonly GameForStats[]): Calculation {
   return tally('와일드피치', '와일드피치로 기록한 공 수', pitchSources(faced(games), (r) => r === 'wildPitch'));
 }
 
+/** 포일: 포수가 공을 놓쳐 주자가 간 공. 투수 기록은 아니지만 던지는 동안 일어난 일로 함께 보여준다. */
+export function passedBalls(games: readonly GameForStats[]): Calculation {
+  return tally('포일', '포일(포수가 놓침)로 기록한 공 수', pitchSources(faced(games), (r) => r === 'passedBall'));
+}
+
 export function pickoffAttempts(games: readonly GameForStats[]): Calculation {
   return tally('견제', '견제한 횟수 (견제 아웃 포함)', playSources(faced(games), ['pickoff', 'pickoffOut']));
 }
@@ -338,6 +343,7 @@ export function summarize(games: readonly GameForStats[]): PitcherSummary {
         title: '주자 상황',
         items: [
           wildPitches(games),
+          passedBalls(games),
           pickoffAttempts(games),
           pickoffOuts(games),
           stolenBasesAllowed(games),
