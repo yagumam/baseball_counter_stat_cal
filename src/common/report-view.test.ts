@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { paginate, reportPdfName, screenJpegName } from './report-view';
+import { paginate, reportPdfName, reportSavedMessage, screenJpegName } from './report-view';
 import { barLengths } from './analysis-ui';
 
 describe('리포트 쪽 나누기', () => {
@@ -43,5 +43,12 @@ describe('리포트 파일 이름', () => {
   it('범위와 날짜를 넣는다', () => {
     expect(reportPdfName('선택한경기', '2026-10-11')).toBe('분석리포트_선택한경기_20261011.pdf');
     expect(screenJpegName('투수', '전체', '2026-10-11')).toBe('분석화면_투수_전체_20261011.jpg');
+  });
+});
+
+describe('리포트 저장 알림', () => {
+  it('형식에 맞는 문구', () => {
+    expect(reportSavedMessage('jpg')).toBe('분석 화면(JPG)을 만들었어요. 휴대폰의 "다운로드" 폴더에 있어요.');
+    expect(reportSavedMessage('pdf')).toContain('분석 보고서(PDF)');
   });
 });
