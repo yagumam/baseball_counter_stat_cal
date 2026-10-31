@@ -183,14 +183,16 @@ function board(model: InputModel, actions: InputActions): HTMLElement {
   const state = replay.state;
 
   // 미니게임은 장면 설정이 없으므로 그 자리에 경기 끝 단추를 둔다. (진행 중일 때만)
-  const sceneButton =
+  const sceneButton = (className: string): HTMLElement =>
     info.gameType === 'mini' && state
-      ? h('button', { className: 'board-scene', text: `${MINI_GAME_LABEL.end} ›`, onClick: () => actions.askEndGame(true) })
-      : h('button', { className: 'board-scene', text: '장면 바꾸기 ›', onClick: actions.openScene });
+      ? h('button', { className, text: `${MINI_GAME_LABEL.end} ›`, onClick: () => actions.askEndGame(true) })
+      : h('button', { className, text: '장면 바꾸기 ›', onClick: actions.openScene });
   const head = h('div', { className: 'board-head' }, [
     h('button', { className: 'board-game', onClick: actions.openGames }, [`${dateLabel(info.date)} · ${opponentLabel(info.opponent)}`]),
-    sceneButton,
+    sceneButton('board-scene'),
   ]);
+  // 화면 분할처럼 작은 창에서는 맨 위 줄(board-head)을 숨기므로, 같은 단추를 점수 칸 옆에 작게 보여준다.
+  const scenePill = sceneButton('pill scene-pill');
   const scorePill = h('button', { className: 'pill score', onClick: actions.openScoreboard }, [
     h('small', { text: '상대 ' }),
     `${score.totalRuns.them} : ${score.totalRuns.us}`,
@@ -200,7 +202,7 @@ function board(model: InputModel, actions: InputActions): HTMLElement {
   if (!state) {
     return h('div', { className: 'board' }, [
       head,
-      h('div', { className: 'board-stats' }, [scorePill]),
+      h('div', { className: 'board-stats' }, [scorePill, scenePill]),
       h('p', { className: 'message', text: boardMessage(replay, info.gameType === 'mini'), attrs: { 'aria-live': 'polite' } }),
     ]);
   }
@@ -228,7 +230,7 @@ function board(model: InputModel, actions: InputActions): HTMLElement {
         h('p', { className: 'bases-text', text: basesLabel(bases) }),
       ]),
     ]),
-    h('div', { className: 'board-stats' }, [workloadPill(replay, state), scorePill]),
+    h('div', { className: 'board-stats' }, [workloadPill(replay, state), scorePill, scenePill]),
     // 장면 중에는 아래 "↶ 취소" 단추가 방금 기록을 보여 주므로, 높이가 낮은 화면에서는 CSS로 숨긴다.
     h('p', { className: 'message live', text: boardMessage(replay, info.gameType === 'mini'), attrs: { 'aria-live': 'polite' } }),
     boardMore(model),
