@@ -3548,3 +3548,21 @@ input[type='file'].visually-hidden {
     animation: none;
   }
 }
+
+/* 우리 아이 주루 제목 줄: 오른쪽에 "주루 건너뛰기" */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.skip-running {
+  flex: none;
+  color: var(--primary);
+  padding: 0 2px;
+  line-height: 1.2;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}

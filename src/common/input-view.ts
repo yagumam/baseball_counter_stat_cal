@@ -390,9 +390,11 @@ function childRunnerPad(state: ActiveState, chooser: Chooser, actions: InputActi
     out: true,
   };
   return h('section', { className: 'runner-section child' }, [
-    h('p', { className: 'section-title' }, [
-      '우리 아이 주루',
-      h('small', { text: base === null ? '' : ` · 지금 ${BASE_NAMES[base]}` }),
+    h('div', { className: 'section-head' }, [
+      h('p', { className: 'section-title' }, ['우리 아이 주루', h('small', { text: base === null ? '' : ` · 지금 ${BASE_NAMES[base]}` })]),
+      // 주루가 중요하지 않으면 기록하지 않고 넘어간다. 아이 장면이 끝나고 다음 장면을 시작할 수 있다.
+      // 버튼 줄이 늘면 세로 화면에 스크롤이 생기므로 제목 줄 오른쪽에 둔다.
+      h('button', { className: 'link-button skip-running', text: `${EXIT_REASON_LABEL.skipRunning} ›`, onClick: () => actions.scene.exit?.('skipRunning') }),
     ]),
     h('div', { className: 'child-grid' }, [
       ...CHILD_RUNNER_BUTTONS.map((b) =>

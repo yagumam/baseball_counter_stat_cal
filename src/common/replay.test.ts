@@ -337,6 +337,14 @@ describe('교체', () => {
     expect(r.scenes[0].exitReason).toBe('pinchHitter');
   });
 
+  it('주루 건너뛰기: 아이 타석(2루타)은 남고 장면이 끝나며, 뒤 공은 기록되지 않는다', () => {
+    const r = replayGame([appear('batter'), hit('double'), exit('skipRunning'), ...pitches('ball')], settings('us'));
+    expect(r.state).toBeNull();
+    expect(r.plateAppearances.map((pa) => pa.outcome)).toEqual(['hit']);
+    expect(r.scenes[0]).toMatchObject({ endedBy: 'exit', exitReason: 'skipRunning' });
+    expect(r.runnerEvents).toEqual([]);
+  });
+
   it('까닭 없이 끝내면(교체 아웃/기록 종료) 까닭은 없다', () => {
     expect(asPitcher(exit()).scenes[0]).toMatchObject({ endedBy: 'exit', exitReason: null });
   });

@@ -281,6 +281,7 @@ export const EXIT_REASON_LABEL: Record<ExitReason, string> = {
   pinchHitter: '대타로 교체',
   pitchingChange: '투수 교체 (내려옴)',
   defensiveChange: '수비 교체',
+  skipRunning: '주루 건너뛰기',
 };
 
 /** 지금 역할에서 아이가 빠질 때의 교체 까닭 (주자면 대주자, 타석이면 대타 …) */
