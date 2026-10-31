@@ -1158,6 +1158,12 @@ input:focus-visible {
   gap: 8px;
 }
 
+/* 작은 창에서만 보이는 "장면 바꾸기" 알약 (맨 위 줄 대신) */
+.scene-pill {
+  display: none;
+  font-weight: 700;
+}
+
 .board-scene {
   padding: 4px 10px;
   border-radius: 999px;
@@ -3003,6 +3009,10 @@ input[type='file'].visually-hidden {
 
   .board-head {
     display: none;
+  }
+
+  .scene-pill {
+    display: inline-flex;
   }
 
   .board .inning strong {
