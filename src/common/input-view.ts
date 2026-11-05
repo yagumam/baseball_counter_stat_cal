@@ -25,6 +25,7 @@ import {
   EXIT_REASON_LABEL,
   REPLACE_REASON_BY_ROLE,
   MINI_GAME_LABEL,
+  OUT_AT_HOME_LABEL,
   SCENE_END_BUTTON,
   RUNNER_BUTTONS,
   RunnerAction,
@@ -324,7 +325,7 @@ function baseChoiceLabel(action: RunnerAction, base: BaseIndex, bases: Bases): s
 
 /** 투수·타자 장면: 다른 주자들에 대한 기록 */
 function runnerPad(bases: Bases, chooser: Chooser, actions: InputActions, onEdit: () => void): HTMLElement {
-  if (chooser && chooser !== 'hit' && chooser !== 'doublePlay' && chooser !== 'otherRunner') {
+  if (chooser && chooser !== 'hit' && chooser !== 'doublePlay' && chooser !== 'otherRunner' && chooser !== 'outAtHome') {
     return h('section', { className: 'runner-section' }, [
       h('p', { className: 'section-title', text: CHOOSER_QUESTION[chooser] }),
       h('div', { className: 'choice-row' }, [
@@ -534,6 +535,20 @@ function controls(model: InputModel, actions: InputActions): HTMLElement {
   }
 
   if (draft) return h('div', { className: 'controls' }, [situationEditor(draft, actions)]);
+
+  // 와일드피치 · 포일로 3루 주자가 홈에 들어온 바로 뒤: 득점인지 홈에서 아웃인지 묻는다.
+  if (chooser === 'outAtHome' && state.canOutAtHome) {
+    return h('div', { className: 'controls' }, [
+      h('section', { className: 'chooser' }, [
+        h('p', { className: 'section-title', text: OUT_AT_HOME_LABEL.question }),
+        h('div', { className: 'choice-row' }, [
+          h('button', { className: 'play', text: OUT_AT_HOME_LABEL.scored, onClick: () => actions.choose(null) }),
+          h('button', { className: 'play', text: OUT_AT_HOME_LABEL.out, onClick: () => actions.runner('outAtHome') }),
+        ]),
+      ]),
+      undoButton(events, actions),
+    ]);
+  }
 
   if (model.confirmEnd) {
     return h('div', { className: 'controls' }, [

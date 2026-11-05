@@ -53,7 +53,9 @@ export type PlayKind =
   | 'error'
   | 'runnerOut'
   | 'stolenSecond'
-  | 'caughtStealingSecond';
+  | 'caughtStealingSecond'
+  /** 와일드피치 · 포일로 방금 홈에 들어온 주자가 사실은 홈에서 아웃됨: 그 점수를 빼고 아웃 하나 */
+  | 'outAtHome';
 
 export const PLAY_KINDS: readonly PlayKind[] = [
   'pickoff',
@@ -64,6 +66,7 @@ export const PLAY_KINDS: readonly PlayKind[] = [
   'runnerOut',
   'stolenSecond',
   'caughtStealingSecond',
+  'outAtHome',
 ];
 
 /** 구종 */

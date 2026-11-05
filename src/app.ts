@@ -375,6 +375,11 @@ export function mountApp(root: HTMLElement): void {
     );
     // 실책 출루 뒤에는 더 간 주자나 아웃된 주자(3아웃 포함)를 바로 맞추게 한다.
     if (result === 'reachedOnError') openErrorAdjust(ROE_REASON);
+    // 와일드피치 · 포일로 3루 주자가 들어왔으면 득점인지 홈에서 아웃인지 바로 묻는다.
+    if ((result === 'wildPitch' || result === 'passedBall') && currentReplay()?.state?.canOutAtHome) {
+      state.chooser = 'outAtHome';
+      render();
+    }
   };
 
   const currentReplay = (): GameReplay | null => {

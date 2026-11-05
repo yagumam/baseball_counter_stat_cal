@@ -170,6 +170,8 @@ export interface ActiveState {
   /** 지금 타자의 정보 (고른 경우만) */
   readonly batterHand: BatterHand | null;
   readonly batterGrade: number | null;
+  /** 방금 와일드피치 · 포일로 주자가 홈에 들어와 "홈에서 아웃"으로 바꿀 수 있는지 */
+  readonly canOutAtHome: boolean;
 }
 
 export interface HalfTotals {
@@ -282,6 +284,11 @@ interface OpenScene {
   errorPending: boolean;
   /** 미니게임 공격 장면: 타자는 늘 아이이고, 나가 있는 주자는 아이로 따로 세지 않는다. */
   childAlwaysBats: boolean;
+  /**
+   * 바로 앞 기록이 와일드피치 · 포일이고 그때 주자(아이 아님)가 홈에 들어왔으면 그 점수의 주인.
+   * 다음 기록이 "홈에서 아웃"이면 이 점수를 빼고 아웃으로 바꾼다. 다른 기록이 오면 지운다.
+   */
+  wildRunScored: { owner: { runs: number; unearnedRuns: number; outsRecorded: number }; unearned: boolean } | null;
 }
 
 type Totals = { runs: number; hits: number; errors: number };
@@ -451,6 +458,7 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
       lastClosed: null,
       errorPending: false,
       childAlwaysBats,
+      wildRunScored: null,
     };
     s.current = openPa(s, record.count);
     scene = s;
@@ -509,13 +517,17 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     // 기록이 있는 초·말은 점수가 없어도 0점으로 스코어보드에 남긴다.
     totals(s);
     s.errorPending = false;
+    s.wildRunScored = null;
     pa.timeline.push(event);
     pa.pitches.push(event);
-    if (event.result === 'wildPitch') applyAdvance(s, advanceRunners(s.runners, 1), pa);
-    // 포일로 들어온 점수는 비자책이다 (공식 야구 규칙 9.16(a)). 이어서 고친 점수도 같은 플레이로 본다.
-    if (event.result === 'passedBall') {
-      applyAdvance(s, advanceRunners(s.runners, 1), pa, true);
-      s.errorPending = true;
+    if (event.result === 'wildPitch' || event.result === 'passedBall') {
+      const passed = event.result === 'passedBall';
+      const advance = advanceRunners(s.runners, 1);
+      // 포일로 들어온 점수는 비자책이다 (공식 야구 규칙 9.16(a)). 이어서 고친 점수도 같은 플레이로 본다.
+      applyAdvance(s, advance, pa, passed);
+      s.errorPending = passed;
+      // 한 칸씩 가므로 들어올 수 있는 주자는 3루 주자 한 명뿐이다. 아이가 들어왔으면 장면이 끝나므로 고르지 않는다.
+      if (advance.runs > 0 && !advance.childScored) s.wildRunScored = { owner: pa, unearned: passed || advance.unearnedRuns > 0 };
     }
     const applied = applyPitch(pa.count, event.result);
     if (!applied.outcome) {
@@ -552,6 +564,8 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     pa.runsOnResult = pa.runs - runsBefore;
     if (batterIsChild) s.childBatting = false;
     closePa(s, applied.outcome, pa.count);
+    // 볼넷이 된 와일드피치 · 포일이면 점수는 방금 닫힌 타석에 남아 있다.
+    if (s.wildRunScored && s.lastClosed) s.wildRunScored = { ...s.wildRunScored, owner: s.lastClosed };
     endHalfIfOver(s);
     endIfChildDone(s);
   };
@@ -565,7 +579,18 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     pa.outsRecorded += 1;
   };
 
+  /** 와일드피치 · 포일로 들어온 점수를 "홈에서 아웃"으로 바꾼다. 바로 앞 기록이 그런 득점이 아니면 아무것도 하지 않는다. */
+  const outAtHome = (s: OpenScene, scored: NonNullable<OpenScene['wildRunScored']>): void => {
+    totals(s).runs -= 1;
+    scored.owner.runs -= 1;
+    if (scored.unearned) scored.owner.unearnedRuns -= 1;
+    scored.owner.outsRecorded += 1;
+    s.outs += 1;
+  };
+
   const onPlay = (s: OpenScene, pa: OpenPlateAppearance, event: PlayEvent): void => {
+    const scoredOnWild = s.wildRunScored;
+    s.wildRunScored = null;
     totals(s);
     // 실책 진루 뒤에 이어진 주루 아웃까지는 같은 실책 플레이로 본다.
     if (event.play === 'error') s.errorPending = true;
@@ -602,12 +627,16 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
         pa.errors += 1;
         totals(s).errors += 1;
         break;
+      case 'outAtHome':
+        if (scoredOnWild) outAtHome(s, scoredOnWild);
+        break;
     }
     endHalfIfOver(s);
     endIfChildDone(s);
   };
 
   const onAdjust = (s: OpenScene, event: AdjustEvent): void => {
+    s.wildRunScored = null;
     // 다음 타자의 첫 공 전에 고친 것은 방금 끝난 타석의 결과로 본다. (예: 병살의 두 번째 아웃)
     const owner = started(s.current) || !s.lastClosed ? s.current : s.lastClosed;
     owner?.timeline.push(event);
@@ -719,5 +748,6 @@ function activeState(s: OpenScene): ActiveState {
     position: s.record.position,
     batterHand: s.current?.batterHand ?? null,
     batterGrade: s.current?.batterGrade ?? null,
+    canOutAtHome: s.wildRunScored !== null,
   };
 }

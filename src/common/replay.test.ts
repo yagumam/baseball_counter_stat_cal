@@ -323,6 +323,48 @@ describe('지난 공 고치기', () => {
   });
 });
 
+describe('와일드피치 · 포일 뒤 홈에서 아웃', () => {
+  const third = () => adjust(1, 0, [false, false, true]);
+
+  it('3루 주자 와일드피치 홈인 → 홈에서 아웃: 점수 0, 아웃 1, 볼은 그대로', () => {
+    const r = asPitcher(third(), ...pitches('wildPitch'), play('outAtHome'));
+    expect(r.halves.get('1T')?.runs).toBe(0);
+    expect(r.state).toMatchObject({ outs: 1, bases: [false, false, false], count: { balls: 1, strikes: 0 } });
+    expect(r.plateAppearances[0]).toMatchObject({ runs: 0, outsRecorded: 1 });
+  });
+
+  it('포일로 들어온 비자책 점수도 빠진다', () => {
+    const r = asPitcher(third(), ...pitches('passedBall'), play('outAtHome'));
+    expect(r.plateAppearances[0]).toMatchObject({ runs: 0, unearnedRuns: 0, outsRecorded: 1 });
+  });
+
+  it('볼넷이 된 와일드피치(볼 4개째)여도 방금 끝난 타석의 점수를 뺀다', () => {
+    const r = asPitcher(third(), ...pitches('ball', 'ball', 'ball', 'wildPitch'), play('outAtHome'));
+    expect(r.plateAppearances[0]).toMatchObject({ outcome: 'walk', runs: 0, outsRecorded: 1 });
+    expect(r.state?.outs).toBe(1);
+  });
+
+  it('2아웃에서 홈에서 아웃이면 3아웃으로 이닝이 끝나고 점수는 없다', () => {
+    const r = asPitcher(adjust(1, 2, [false, false, true]), ...pitches('wildPitch'), play('outAtHome'));
+    expect(r.halves.get('1T')?.runs).toBe(0);
+    expect(r.state).toMatchObject({ inning: 2, outs: 0 });
+  });
+
+  it('바로 앞이 와일드피치 득점일 때만 고를 수 있고, 아니면 아무것도 바꾸지 않는다', () => {
+    expect(asPitcher(third(), ...pitches('wildPitch')).state?.canOutAtHome).toBe(true);
+    expect(asPitcher(third(), ...pitches('wildPitch', 'ball')).state?.canOutAtHome).toBe(false);
+    expect(asPitcher(adjust(1, 0, [true, false, false]), ...pitches('wildPitch')).state?.canOutAtHome).toBe(false);
+    const ignored = asPitcher(third(), ...pitches('wildPitch', 'ball'), play('outAtHome'));
+    expect(ignored.state?.outs).toBe(0);
+    expect(ignored.halves.get('1T')?.runs).toBe(1);
+  });
+
+  it('아이가 3루에서 홈인한 경우는 장면이 끝나 고르지 않는다', () => {
+    const r = replayGame([appear('runner', { childBase: 2, bases: [false, false, true] }), ...pitches('wildPitch')], settings('us'));
+    expect(r.state).toBeNull();
+  });
+});
+
 describe('더블스틸', () => {
   it('주자 1·2루에서 더블스틸: 2루 → 3루, 1루 → 2루 (도루 2개)', () => {
     const r = asPitcher(adjust(1, 0, [true, true, false]), play('stolenBase', 1), play('stolenBase', 0));

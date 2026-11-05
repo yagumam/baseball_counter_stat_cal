@@ -6,7 +6,7 @@ import { FIELDING_CREDIT_HINT, FIELDING_CREDIT_LABEL, PLAY_FIELDING_LABEL, RUNNE
 import { popup } from './popup';
 
 /** 아이가 수비 기록을 받을 수 있는 주자 상황 (견제 아웃·도루 실패는 잡거나 던져서, 실책 진루는 실책) */
-export const FIELDING_PLAYS: readonly RunnerAction[] = ['pickoffOut', 'caughtStealing', 'error', 'runnerOut'];
+export const FIELDING_PLAYS: readonly RunnerAction[] = ['pickoffOut', 'caughtStealing', 'error', 'runnerOut', 'outAtHome'];
 
 /** 여러 개를 함께 고를 수 있다. (예: 병살에서 2루 베이스를 밟고(자살) 1루로 던짐(보살)) */
 export function fieldingChips(selected: readonly FieldingCredit[], onChange: (fielding: readonly FieldingCredit[]) => void): HTMLElement {

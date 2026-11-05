@@ -258,7 +258,8 @@ export function pitchLabel(pitch: Pick<PitchEvent, 'result' | 'hitType' | 'doubl
 }
 
 /** 주자 상황 버튼. 주자가 여럿이면 누구인지 고르는 화면이 나온다. */
-export type RunnerAction = 'pickoff' | 'pickoffOut' | 'stolenBase' | 'caughtStealing' | 'error' | 'runnerOut';
+/** outAtHome은 단추가 아니라 와일드피치 · 포일로 홈인한 뒤 묻는 창에서 고른다. */
+export type RunnerAction = 'pickoff' | 'pickoffOut' | 'stolenBase' | 'caughtStealing' | 'error' | 'runnerOut' | 'outAtHome';
 
 export const RUNNER_BUTTONS: readonly { action: RunnerAction; label: string; hint: string }[] = [
   { action: 'pickoff', label: '견제', hint: '주자 살아남' },
@@ -311,12 +312,16 @@ export const CHILD_RUNNER_BUTTONS: readonly { action: ChildRunnerAction; label: 
   { action: 'out', label: '주루 아웃' },
 ];
 
+/** 와일드피치 · 포일로 3루 주자가 홈에 들어온 뒤 묻는 단추 */
+export const OUT_AT_HOME_LABEL = { question: '3루 주자가 홈에 들어왔어요. 어떻게 됐나요?', scored: '홈인 (득점)', out: '홈에서 아웃' } as const;
+
 export const CHOOSER_QUESTION: Record<Exclude<RunnerAction, 'error'>, string> = {
   pickoff: '어느 베이스로 견제했나요?',
   pickoffOut: '어느 주자를 견제로 잡았나요?',
   stolenBase: '누가 도루했나요?',
   caughtStealing: '누가 도루하다 잡혔나요?',
   runnerOut: '어느 주자가 아웃됐나요? (지금 있는 베이스)',
+  outAtHome: OUT_AT_HOME_LABEL.question,
 };
 
 function playLabel(play: PlayEvent): string {
@@ -338,8 +343,11 @@ function playLabel(play: PlayEvent): string {
       return '실책 (주자 이동)';
     case 'runnerOut':
       return `주자 아웃 (${BASE_NAMES[base]} 주자)`;
+    case 'outAtHome':
+      return OUT_AT_HOME_LABEL.out;
   }
 }
+
 
 const CHILD_POSITION_LABEL = { scored: '아이 홈인', out: '아이 아웃' } as const;
 

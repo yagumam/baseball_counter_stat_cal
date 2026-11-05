@@ -276,6 +276,13 @@ describe('자책점 · 비자책점 · 평균자책점', () => {
     expect(earnedRuns(games).value).toBe(0);
   });
 
+  it('와일드피치 홈인을 홈에서 아웃으로 바꾸면 실점 0, 잡은 아웃 1(1/3이닝), 와일드피치 1개는 그대로', () => {
+    const games = asGames([appear('pitcher', { bases: [false, false, true] }), ...pitches('wildPitch'), play('outAtHome')]);
+    expect(runsAllowed(games).value).toBe(0);
+    expect(inningsPitched(games).display).toBe('1/3');
+    expect(wildPitches(games).value).toBe(1);
+  });
+
   it('3루 주자가 포일로 홈인: 실점 1 = 비자책 1, 와일드피치로 홈인하면 자책 1', () => {
     const passed = asGames([appear('pitcher', { bases: [false, false, true] }), ...pitches('passedBall')]);
     expect(runsAllowed(passed).value).toBe(1);

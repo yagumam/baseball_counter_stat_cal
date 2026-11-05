@@ -43,6 +43,7 @@ import {
   MINI_GAME_LABEL,
   GAME_OVER_LABEL,
   EXIT_REASON_LABEL,
+  OUT_AT_HOME_LABEL,
   OTHER_RUNNER_OUT_LABEL,
   EDIT_EVENT_LABEL,
   CALENDAR_LABEL,
@@ -81,6 +82,7 @@ describe('도움말이 화면과 맞는지', () => {
     expect(missing(Object.values(SCENE_END_BUTTON))).toEqual([]);
     expect(missing(Object.values(GAME_OVER_LABEL))).toEqual([]);
     expect(missing(Object.values(EXIT_REASON_LABEL))).toEqual([]);
+    expect(missing(Object.values(OUT_AT_HOME_LABEL))).toEqual([]);
     expect(missing(Object.values(MINI_GAME_LABEL))).toEqual([]);
     expect(missing([OTHER_RUNNER_OUT_LABEL])).toEqual([]);
     expect(missing(Object.values(EDIT_EVENT_LABEL))).toEqual([]);
