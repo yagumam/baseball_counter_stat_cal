@@ -140,9 +140,20 @@ export function hasRunner(bases: Bases): boolean {
   return bases.some(Boolean);
 }
 
-/** 도루할 수 있는 주자: 다음 베이스가 비어 있는 주자 (3루 주자는 홈 도루) */
-export function stealableBases(bases: Bases): BaseIndex[] {
-  return occupiedBases(bases).filter((b) => b === 2 || !bases[b + 1]);
+/** 이 주자 바로 앞에 이어 서 있는 주자들 (앞 주자 먼저). 예: 1·2루에서 1루 주자 → [2루] */
+export function runnersAhead(bases: Bases, base: BaseIndex): BaseIndex[] {
+  const ahead: BaseIndex[] = [];
+  for (let b = base + 1; b <= 2 && bases[b]; b += 1) ahead.unshift(b as BaseIndex);
+  return ahead;
+}
+
+/**
+ * 도루(성공·실패) 기록을 주자별로 나눈다. 다음 베이스에 주자가 있으면 그 앞 주자들도 함께 뛴 더블스틸·트리플스틸로 보고,
+ * 앞 주자부터 차례로 도루 성공을 남긴 뒤 이 주자의 도루(성공 또는 실패)를 남긴다. (앞 주자가 먼저 비켜야 뒤 주자가 갈 수 있다)
+ * 예: 1·2루에서 1루 주자 도루 → [2루 주자 도루, 1루 주자 도루]
+ */
+export function stealPlays(bases: Bases, base: BaseIndex, play: 'stolenBase' | 'caughtStealing'): { play: 'stolenBase' | 'caughtStealing'; base: BaseIndex }[] {
+  return [...runnersAhead(bases, base).map((b) => ({ play: 'stolenBase' as const, base: b })), { play, base }];
 }
 
 export function occupiedBases(bases: Bases): BaseIndex[] {

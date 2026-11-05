@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advanceRunners, basesLabel, batterAdvance, forceAdvance, fromBases, outTypeAdvance, outTypeOptions, stealAdvance, stealableBases, toBases } from './bases';
+import { advanceRunners, basesLabel, batterAdvance, forceAdvance, fromBases, outTypeAdvance, outTypeOptions, runnersAhead, stealAdvance, stealPlays, toBases } from './bases';
 
 const on = (b1: boolean, b2: boolean, b3: boolean) => fromBases([b1, b2, b3]);
 
@@ -20,8 +20,22 @@ describe('주자 이동과 득점', () => {
 
   it('도루: 3루 → 홈은 득점', () => {
     expect(stealAdvance(on(false, false, true), 2).runs).toBe(1);
-    expect(stealableBases([true, true, false])).toEqual([1]);
-    expect(stealableBases([true, false, true])).toEqual([0, 2]);
+  });
+
+  it('더블스틸: 다음 베이스에 주자가 있으면 앞 주자부터 함께 뛴다', () => {
+    expect(runnersAhead([true, true, false], 0)).toEqual([1]);
+    expect(runnersAhead([true, false, true], 0)).toEqual([]);
+    expect(runnersAhead([true, true, true], 0)).toEqual([2, 1]);
+    expect(stealPlays([true, true, false], 0, 'stolenBase')).toEqual([
+      { play: 'stolenBase', base: 1 },
+      { play: 'stolenBase', base: 0 },
+    ]);
+    // 앞 주자(3루)는 홈 도루 성공, 아이(2루)는 도루 실패
+    expect(stealPlays([false, true, true], 1, 'caughtStealing')).toEqual([
+      { play: 'stolenBase', base: 2 },
+      { play: 'caughtStealing', base: 1 },
+    ]);
+    expect(stealPlays([true, false, false], 0, 'stolenBase')).toEqual([{ play: 'stolenBase', base: 0 }]);
   });
 
   it('우리 아이를 따라간다: 1루의 아이는 볼넷이면 2루, 2루타면 3루, 3루타면 득점', () => {

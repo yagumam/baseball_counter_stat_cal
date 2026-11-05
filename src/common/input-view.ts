@@ -1,7 +1,7 @@
 // 기록 입력 화면 (투수·타자 공통, 상황 기준 하나 — CLAUDE.md 0.5)
 // 상황판(이닝·아웃·카운트·주자·점수·투구 수)은 위에 고정하고, 버튼은 스크롤 없이 한 화면에 들어가게 한다. (0.4)
 
-import { BASE_NAMES, STEAL_NAMES, basesLabel, hasRunner, occupiedBases, stealableBases } from './bases';
+import { BASE_NAMES, STEAL_NAMES, basesLabel, hasRunner, occupiedBases, runnersAhead } from './bases';
 import { MAX_BALLS_IN_COUNT, MAX_STRIKES_IN_COUNT, OUTS_PER_INNING } from './count';
 import { diamond } from './diamond';
 import { h } from './dom';
@@ -313,14 +313,13 @@ function pitchPad(actions: InputActions, chooser: Chooser, title: string | null,
   ]);
 }
 
-/** 이 동작을 할 수 있는 베이스 */
-function basesFor(action: RunnerAction, bases: Bases): BaseIndex[] {
-  if (action === 'stolenBase' || action === 'caughtStealing') return stealableBases(bases);
-  return occupiedBases(bases);
-}
-
-function baseChoiceLabel(action: RunnerAction, base: BaseIndex): string {
-  return action === 'stolenBase' || action === 'caughtStealing' ? STEAL_NAMES[base] : BASE_NAMES[base];
+/** 도루 고르기: 앞에 주자가 있으면 함께 뛰는 더블스틸로 적는다. 예: "1루 → 2루 (앞 주자도 함께 · 더블스틸)" */
+function baseChoiceLabel(action: RunnerAction, base: BaseIndex, bases: Bases): string {
+  if (action !== 'stolenBase' && action !== 'caughtStealing') return BASE_NAMES[base];
+  const ahead = runnersAhead(bases, base).length;
+  if (ahead === 0) return STEAL_NAMES[base];
+  const together = action === 'stolenBase' ? '앞 주자도 함께' : '앞 주자는 성공';
+  return `${STEAL_NAMES[base]} (${together} · ${ahead === 1 ? '더블스틸' : '트리플스틸'})`;
 }
 
 /** 투수·타자 장면: 다른 주자들에 대한 기록 */
@@ -329,8 +328,8 @@ function runnerPad(bases: Bases, chooser: Chooser, actions: InputActions, onEdit
     return h('section', { className: 'runner-section' }, [
       h('p', { className: 'section-title', text: CHOOSER_QUESTION[chooser] }),
       h('div', { className: 'choice-row' }, [
-        ...basesFor(chooser, bases).map((b) =>
-          h('button', { className: 'play', text: baseChoiceLabel(chooser, b), onClick: () => actions.runner(chooser, b) }),
+        ...occupiedBases(bases).map((b) =>
+          h('button', { className: 'play', text: baseChoiceLabel(chooser, b, bases), onClick: () => actions.runner(chooser, b) }),
         ),
         h('button', { className: 'secondary', text: '취소', onClick: () => actions.choose(null) }),
       ]),
@@ -339,7 +338,7 @@ function runnerPad(bases: Bases, chooser: Chooser, actions: InputActions, onEdit
 
   const onRunner = (action: RunnerAction): void => {
     if (action === 'error') return actions.runner('error');
-    const choices = basesFor(action, bases);
+    const choices = occupiedBases(bases);
     if (choices.length === 1) actions.runner(action, choices[0]);
     else actions.choose(action);
   };
@@ -351,7 +350,7 @@ function runnerPad(bases: Bases, chooser: Chooser, actions: InputActions, onEdit
     ]),
     h('div', { className: 'play-grid' }, [
       ...RUNNER_BUTTONS.map((b) =>
-        h('button', { className: 'play', disabled: basesFor(b.action, bases).length === 0, onClick: () => onRunner(b.action) }, [
+        h('button', { className: 'play', disabled: occupiedBases(bases).length === 0, onClick: () => onRunner(b.action) }, [
           h('strong', { text: b.label }),
           h('small', { text: b.hint }),
         ]),
@@ -381,7 +380,8 @@ function childRunnerPad(state: ActiveState, chooser: Chooser, actions: InputActi
   if (chooser === 'otherRunner') return otherRunnerChooser(state, actions);
   const base = state.childBase;
   const hasOthers = occupiedBases(state.bases).some((b) => b !== base);
-  const canSteal = base !== null && (base === 2 || !state.bases[base + 1]);
+  // 다음 베이스에 주자가 있어도 함께 뛰는 더블스틸로 기록할 수 있다.
+  const canSteal = base !== null;
   const enabled: Record<ChildRunnerAction, boolean> = {
     stolenBase: canSteal,
     caughtStealing: canSteal,

@@ -11,7 +11,7 @@ import { batterReport } from './batter/report';
 import { fielderReport } from './fielder/report';
 import { h, segmented } from './common/dom';
 import { BaseIndex, BatterHand, ExitReason, FieldingCredit, GAME_TYPES, GameType, HitType, OutType, PLACE_MAX_LENGTH, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
-import { outTypeOptions } from './common/bases';
+import { outTypeOptions, stealPlays } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
 import { gamesChangedSince, loadLastBackup, loadReminderDismissed, saveLastBackup, saveReminderDismissed, shouldShowReminder } from './common/backup-reminder';
@@ -430,6 +430,13 @@ export function mountApp(root: HTMLElement): void {
 
   /** 주자 상황 기록. 실책 뒤에는 바로 상황 고치기를 열어 바뀐 주자·점수를 맞추게 한다. */
   const recordRunnerPlay = (action: RunnerAction, base: BaseIndex | undefined, fielding: readonly FieldingCredit[]): void => {
+    const bases = currentReplay()?.state?.bases;
+    // 도루는 앞 주자들도 함께 뛴 더블스틸일 수 있다. 앞 주자 도루부터 남기고, 수비 기록은 이 주자의 기록에만 붙인다.
+    if ((action === 'stolenBase' || action === 'caughtStealing') && base !== undefined && bases) {
+      const plays = stealPlays(bases, base, action);
+      updateCurrent((g) => plays.reduce((game, p, i) => addPlay(game, p.play, p.base, i === plays.length - 1 ? fielding : []), g));
+      return;
+    }
     updateCurrent((g) => addPlay(g, action, base, fielding));
     if (action === 'error') openErrorAdjust(ERROR_REASON);
   };
@@ -581,6 +588,11 @@ export function mountApp(root: HTMLElement): void {
         return;
       }
       const base = active.childBase;
+      if (action === 'stolenBase' || action === 'caughtStealing') {
+        const plays = stealPlays(active.bases, base, action);
+        updateCurrent((g) => plays.reduce((game, p) => addPlay(game, p.play, p.base), g));
+        return;
+      }
       updateCurrent((g) => addPlay(g, action, base));
     },
     choose: (chooser: Chooser) => {
