@@ -323,6 +323,20 @@ describe('지난 공 고치기', () => {
   });
 });
 
+describe('더블스틸', () => {
+  it('주자 1·2루에서 더블스틸: 2루 → 3루, 1루 → 2루 (도루 2개)', () => {
+    const r = asPitcher(adjust(1, 0, [true, true, false]), play('stolenBase', 1), play('stolenBase', 0));
+    expect(r.state?.bases).toEqual([false, true, true]);
+  });
+
+  it('아이가 2루, 3루 주자와 더블스틸: 3루 주자 홈인 1점, 아이는 3루, 아이 도루 1개', () => {
+    const r = replayGame([appear('runner', { childBase: 1, bases: [false, true, true] }), play('stolenBase', 2), play('stolenBase', 1)], settings('us'));
+    expect(r.state).toMatchObject({ childBase: 2, bases: [false, false, true] });
+    expect(r.halves.get('1T')?.runs).toBe(1);
+    expect(r.runnerEvents.map((e) => e.kind)).toEqual(['stolenBase']);
+  });
+});
+
 describe('교체', () => {
   it('대주자로 교체: 장면이 끝나고 까닭이 남으며, 뒤에 들어온 점수는 아이 득점이 아니다', () => {
     const r = replayGame([appear('runner', { childBase: 1 }), exit('pinchRunner')], settings('us'));
