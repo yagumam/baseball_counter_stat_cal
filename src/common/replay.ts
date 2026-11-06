@@ -91,6 +91,8 @@ export interface PlateAppearance {
   /** 기록을 시작한 카운트 (중간 등판·대타면 0-0이 아닐 수 있음) */
   readonly startCount: Count;
   readonly pitches: readonly PitchEvent[];
+  /** pitches와 같은 순서로, 각 공을 던지기 직전의 아웃·주자·점수 (분석용 내려받기) */
+  readonly pitchSituations: readonly PitchSituation[];
   /** 이 타석 동안 일어난 투구·주자 상황·고침을 순서대로 */
   readonly timeline: readonly PlayLogEvent[];
   /** 마지막 공을 던지기 직전의 카운트. 끝나지 않았거나 중단되면 null */
@@ -120,6 +122,16 @@ export interface PlateAppearance {
   readonly batterHand: BatterHand | null;
   /** 타자 학년 (고른 경우만) */
   readonly batterGrade: number | null;
+}
+
+/** 공 하나를 던지기 직전의 상황. 같은 타석 안에서도 도루·견제 아웃 등으로 바뀔 수 있어 공마다 남긴다. */
+export interface PitchSituation {
+  readonly outs: number;
+  readonly bases: Bases;
+  /** 우리 아이가 있는 베이스 (주자일 때) */
+  readonly childBase: BaseIndex | null;
+  /** 이 초·말에 이 공 전까지 기록으로 들어온 점수 */
+  readonly runsInHalf: number;
 }
 
 /** 주자로서 우리 아이에게 일어난 일 */
@@ -249,6 +261,7 @@ interface OpenPlateAppearance {
   basesBefore: Bases;
   startCount: Count;
   pitches: PitchEvent[];
+  pitchSituations: PitchSituation[];
   timeline: PlayLogEvent[];
   plays: PlayEvent[];
   count: Count;
@@ -329,6 +342,7 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     basesBefore: toBases(s.runners),
     startCount: count,
     pitches: [],
+    pitchSituations: [],
     timeline: [],
     plays: [],
     count,
@@ -360,6 +374,7 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     basesBefore: pa.basesBefore,
     startCount: pa.startCount,
     pitches: pa.pitches,
+    pitchSituations: pa.pitchSituations,
     timeline: pa.timeline,
     endCount,
     outcome,
@@ -507,10 +522,11 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
 
   const onPitch = (s: OpenScene, pa: OpenPlateAppearance, event: PitchEvent): void => {
     // 기록이 있는 초·말은 점수가 없어도 0점으로 스코어보드에 남긴다.
-    totals(s);
+    const halfTotals = totals(s);
     s.errorPending = false;
     pa.timeline.push(event);
     pa.pitches.push(event);
+    pa.pitchSituations.push({ outs: s.outs, bases: toBases(s.runners), childBase: childBaseOf(s.runners), runsInHalf: halfTotals.runs });
     if (event.result === 'wildPitch') applyAdvance(s, advanceRunners(s.runners, 1), pa);
     // 포일로 들어온 점수는 비자책이다 (공식 야구 규칙 9.16(a)). 이어서 고친 점수도 같은 플레이로 본다.
     if (event.result === 'passedBall') {
