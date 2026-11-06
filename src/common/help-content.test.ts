@@ -13,6 +13,7 @@ import {
   CHILD_RUNNER_BUTTONS,
   DOUBLE_PLAY_BUTTON,
   DOWNLOAD_LABEL,
+  ANALYSIS_DOWNLOAD_LABEL,
   FIELD_BUTTON_LABEL,
   BATTER_HAND_LABEL,
   BATTER_INFO_LABEL,
@@ -98,6 +99,7 @@ describe('도움말이 화면과 맞는지', () => {
     expect(missing(Object.values(PITCH_TYPE_LABEL))).toEqual([]);
     expect(missing([PITCH_DETAIL_LABEL])).toEqual([]);
     expect(missing(Object.values(DOWNLOAD_LABEL))).toEqual([]);
+    expect(missing(Object.values(ANALYSIS_DOWNLOAD_LABEL))).toEqual([]);
     expect(missing([IMPORT_LABEL])).toEqual([]);
     expect(missing([BACKUP_NOW_LABEL, BACKUP_DISMISS_LABEL])).toEqual([]);
     expect(missing(Object.values(REPORT_LABEL))).toEqual([]);

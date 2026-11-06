@@ -2,10 +2,12 @@
 
 import { h } from './dom';
 import { dateLabel } from './game';
-import { BACKUP_NOW_LABEL, DOWNLOAD_LABEL, IMPORT_LABEL } from './labels';
+import { ANALYSIS_DOWNLOAD_LABEL, BACKUP_NOW_LABEL, DOWNLOAD_LABEL, IMPORT_LABEL } from './labels';
+
+export type DownloadKind = 'backup' | 'pitches' | 'analysisPitches' | 'analysisGames' | 'codebook';
 
 export interface DataActions {
-  download: (kind: 'backup' | 'pitches') => void;
+  download: (kind: DownloadKind) => void;
   importBackup: (file: File) => void;
   /** 공유 창으로 백업 파일 보내기 (안 되면 내려받기) */
   backupNow: () => void;
@@ -60,6 +62,23 @@ export function dataSection(hasGames: boolean, lastBackupAt: string | null, acti
     h('button', { className: 'secondary', disabled: !hasGames, onClick: () => actions.download('pitches') }, [
       h('strong', { text: DOWNLOAD_LABEL.csv }),
       h('small', { text: '공 하나당 한 줄 · 엑셀·구글 시트에서 열기' }),
+    ]),
+    h('h4', { text: ANALYSIS_DOWNLOAD_LABEL.title }),
+    h('p', {
+      className: 'help',
+      text: '통계 프로그램(R·Python·SPSS·SAS 등)으로 직접 분석하고 싶을 때 씁니다. 영어 열 이름과 영어 코드로 된 표입니다. 각 열과 코드의 뜻은 "변수 설명서"에 있습니다.',
+    }),
+    h('button', { className: 'secondary', disabled: !hasGames, onClick: () => actions.download('analysisPitches') }, [
+      h('strong', { text: ANALYSIS_DOWNLOAD_LABEL.pitches }),
+      h('small', { text: '공 하나당 한 줄 · 던지기 전 상황과 결과' }),
+    ]),
+    h('button', { className: 'secondary', disabled: !hasGames, onClick: () => actions.download('analysisGames') }, [
+      h('strong', { text: ANALYSIS_DOWNLOAD_LABEL.games }),
+      h('small', { text: '경기 하나당 한 줄 · 날짜·상대·점수' }),
+    ]),
+    h('button', { className: 'secondary', onClick: () => actions.download('codebook') }, [
+      h('strong', { text: ANALYSIS_DOWNLOAD_LABEL.codebook }),
+      h('small', { text: '열 이름·뜻·단위·코드 설명' }),
     ]),
     h('h4', { text: '백업 불러오기' }),
     h('p', { className: 'help', text: '내려받아 둔 백업 파일(JSON)에서 기록을 가져옵니다. 지금 기록은 지우지 않고, 이미 있는 경기는 늘어난 기록만 덧붙입니다.' }),
