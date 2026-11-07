@@ -84,7 +84,7 @@ const COLUMN_TYPE_LABEL: Record<ColumnType, string> = {
   text: '문자',
 };
 
-type CellValue = string | number | null;
+export type CellValue = string | number | null;
 
 export interface Column<R> {
   readonly name: string;
@@ -480,9 +480,14 @@ export function csvCell(value: CellValue): string {
 
 const CRLF = '\r\n';
 
+/** 줄마다 열 순서대로 값. CSV와 구글 시트 모으기가 함께 쓴다. */
+export function columnValues<R>(columns: readonly Column<R>[], rows: readonly R[]): CellValue[][] {
+  return rows.map((row) => columns.map((c) => c.value(row)));
+}
+
 function toCsv<R>(columns: readonly Column<R>[], rows: readonly R[]): string {
   const lines = [columns.map((c) => csvCell(c.name)).join(',')];
-  for (const row of rows) lines.push(columns.map((c) => csvCell(c.value(row))).join(','));
+  for (const values of columnValues(columns, rows)) lines.push(values.map(csvCell).join(','));
   return lines.join(CRLF) + CRLF;
 }
 

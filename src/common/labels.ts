@@ -223,6 +223,16 @@ export const ANALYSIS_DOWNLOAD_LABEL = {
   codebook: '변수 설명서 (코드북)',
 } as const;
 
+/** 설정 → 기록 함께 모으기 (앱 만든 사람의 구글 시트로 보내기) */
+export const SHEET_SYNC_LABEL = {
+  title: '기록 함께 모으기',
+  enable: '동의하고 켜기',
+  disable: '끄기',
+  now: '지금 보내기',
+  remove: '보낸 기록 지우기',
+  confirmRemove: '네, 지워 주세요',
+} as const;
+
 export const IMPORT_LABEL = '백업 파일 불러오기';
 
 /** 한 번 눌러 백업: 휴대폰 공유 창으로 카카오톡·구글 드라이브 등에 보낸다 */
