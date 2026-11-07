@@ -17,7 +17,7 @@ import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner'
 import { gamesChangedSince, loadLastBackup, loadReminderDismissed, saveLastBackup, saveReminderDismissed, shouldShowReminder } from './common/backup-reminder';
 import { downloadFile, shareFile } from './common/download';
 import { backupFileName, backupJson, pitchesCsv, pitchesFileName } from './common/export';
-import { analysisCodebook, analysisFileName, analysisGamesCsv, analysisPitchesCsv } from './common/analysis-export';
+import { analysisCodebook, analysisFileName, analysisGamesCsv, analysisPitchesCsv, analysisPlaysCsv } from './common/analysis-export';
 import { DownloadKind } from './common/data-section';
 import { APP_VERSION } from './common/version';
 import { EMPTY_PITCH_DETAIL, FieldDraft, PitchDetail, PitchSheet, isBattedResult } from './common/pitch-detail-view';
@@ -224,6 +224,8 @@ function downloadFileOf(kind: DownloadKind, games: readonly Game[]): { name: str
       return { name: pitchesFileName(today()), data: pitchesCsv(games, replayOf), type: 'text/csv' };
     case 'analysisPitches':
       return { name: analysisFileName('pitches', today()), data: analysisPitchesCsv(games, replayOf), type: csv };
+    case 'analysisPlays':
+      return { name: analysisFileName('plays', today()), data: analysisPlaysCsv(games, replayOf), type: csv };
     case 'analysisGames':
       return { name: analysisFileName('games', today()), data: analysisGamesCsv(games, replayOf), type: csv };
     case 'codebook':

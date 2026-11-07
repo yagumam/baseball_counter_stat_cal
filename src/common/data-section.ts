@@ -4,7 +4,7 @@ import { h } from './dom';
 import { dateLabel } from './game';
 import { ANALYSIS_DOWNLOAD_LABEL, BACKUP_NOW_LABEL, DOWNLOAD_LABEL, IMPORT_LABEL } from './labels';
 
-export type DownloadKind = 'backup' | 'pitches' | 'analysisPitches' | 'analysisGames' | 'codebook';
+export type DownloadKind = 'backup' | 'pitches' | 'analysisPitches' | 'analysisPlays' | 'analysisGames' | 'codebook';
 
 export interface DataActions {
   download: (kind: DownloadKind) => void;
@@ -71,6 +71,10 @@ export function dataSection(hasGames: boolean, lastBackupAt: string | null, acti
     h('button', { className: 'secondary', disabled: !hasGames, onClick: () => actions.download('analysisPitches') }, [
       h('strong', { text: ANALYSIS_DOWNLOAD_LABEL.pitches }),
       h('small', { text: '공 하나당 한 줄 · 던지기 전 상황과 결과' }),
+    ]),
+    h('button', { className: 'secondary', disabled: !hasGames, onClick: () => actions.download('analysisPlays') }, [
+      h('strong', { text: ANALYSIS_DOWNLOAD_LABEL.plays }),
+      h('small', { text: '견제·도루·실책 진루·주자 아웃 하나당 한 줄' }),
     ]),
     h('button', { className: 'secondary', disabled: !hasGames, onClick: () => actions.download('analysisGames') }, [
       h('strong', { text: ANALYSIS_DOWNLOAD_LABEL.games }),
