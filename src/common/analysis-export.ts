@@ -1,5 +1,6 @@
 // 분석용 내려받기: SAS·SPSS·R·Python 같은 통계 프로그램에서 바로 읽는 CSV와 변수 설명서(코드북).
 // - 공 표(pitches): 공 하나당 한 줄(tidy/long). 던지기 직전 상황 + 그 공의 원자료만 담는다.
+// - 주자 상황 표(plays): 견제·도루·실책 진루·주자 아웃 하나당 한 줄. 상황 열은 공 표와 같은 정의를 쓴다.
 // - 경기 표(games): 경기 하나당 한 줄.
 // - 코드북: 열마다 이름·뜻·타입·단위·코드. 아래 열 정의에서 그대로 만들어 실제 값과 어긋나지 않는다.
 //
@@ -11,7 +12,6 @@
 // - UTF-8(BOM 없음), 쉼표 구분, 줄 끝 CRLF, RFC 4180 따옴표 처리.
 // - 열 순서·이름·코드는 형식 버전과 함께 고정한다. 나중에 구글 시트 동기화의 열 구조로도 그대로 쓴다.
 
-import { Count } from './count';
 import {
   BATTED_BALL_STRENGTHS,
   BATTED_BALL_TYPES,
@@ -20,6 +20,9 @@ import {
   FieldingPosition,
   GameType,
   HIT_TYPES,
+  FieldingCredit,
+  PLAY_KINDS,
+  PlayEvent,
   Half,
   OUT_TYPES,
   PITCH_RESULTS,
@@ -43,12 +46,13 @@ import {
   HIT_TYPE_LABEL,
   OUTCOME_LABEL,
   OUT_TYPE_LABEL,
+  PLAY_KIND_LABEL,
   PITCH_LABEL,
   PITCH_TYPE_LABEL,
   ROLE_LABEL,
 } from './labels';
 import { LineScore, lineScore } from './line-score';
-import { Actor, GameReplay, PitchSituation, PlateAppearance, PlateAppearanceOutcome, applyPitch } from './replay';
+import { Actor, GameReplay, SituationBefore, PlateAppearance, PlateAppearanceOutcome } from './replay';
 
 /** 분석용 파일 형식 버전. 열을 빼거나 이름·뜻·코드를 바꾸면 올린다. (끝에 열을 더하기만 하면 그대로 둔다) */
 export const ANALYSIS_FORMAT_VERSION = 1;
@@ -125,25 +129,21 @@ const binary = (flag: boolean): number => (flag ? 1 : 0);
 const nonEmpty = (text: string): string | null => (text.trim() === '' ? null : text.trim());
 const isoDate = (date: string): string | null => (/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null);
 
-// ---------- 공 표 ----------
+// ---------- 공 표 · 주자 상황 표에 함께 쓰는 상황 열 ----------
 
-export interface PitchRow {
+/** 공 하나 또는 주자 상황 하나의 줄. 그 일이 일어나기 직전의 상황을 담는다. */
+export interface SituationRow {
   readonly game: Game;
   readonly info: GameInfo;
   readonly pa: PlateAppearance;
-  readonly pitch: PitchEvent;
-  /** 타석 안에서 몇 번째 공인지 (1부터) */
-  readonly pitchSeq: number;
   /** 경기에 저장된 이벤트 중 몇 번째인지 (1부터). 덧붙이기만 하므로 바뀌지 않는다. */
   readonly eventSeq: number;
   readonly sceneSeq: number;
-  readonly situation: PitchSituation;
-  readonly countBefore: Count;
+  readonly situation: SituationBefore;
   readonly scoreBefore: Record<Team, number>;
-  readonly edited: boolean;
 }
 
-/** 이 공을 던질 때 아이의 역할. 투수·수비는 장면 그대로, 공격 중이면 아이가 타석이면 타자, 아니면 주자 */
+/** 그 순간 아이의 역할. 투수·수비는 장면 그대로, 공격 중이면 아이가 타석이면 타자, 아니면 주자 */
 function childRoleOf(pa: PlateAppearance): Role {
   if (pa.fieldingPosition === 'pitcher') return 'pitcher';
   if (pa.fieldingPosition !== null) return 'fielder';
@@ -155,56 +155,102 @@ function plateAppearanceId(pa: PlateAppearance): string | null {
   return pa.timeline.find((e) => e.kind === 'pitch' || e.kind === 'play')?.id ?? null;
 }
 
-const fieldingFlag = (row: PitchRow, credit: 'putout' | 'assist' | 'error'): number | null =>
-  row.pa.fieldingPosition === null ? null : binary(row.pitch.fielding?.includes(credit) ?? false);
+/** 아이의 수비 기록 0/1. 아이가 공격 중이면 빈 칸 */
+const fieldingFlag = (row: SituationRow, fielding: readonly FieldingCredit[] | undefined, credit: FieldingCredit): number | null =>
+  row.pa.fieldingPosition === null ? null : binary(fielding?.includes(credit) ?? false);
+
+/**
+ * 두 표에 같은 이름·같은 뜻으로 들어가는 열. when은 "던지기 전"·"일어나기 전"처럼 어느 순간 직전인지,
+ * moment는 "이 공 때"처럼 아이 역할의 기준 순간이다.
+ */
+function situationColumns(when: string, moment: string) {
+  const col = (c: Column<SituationRow>): Column<SituationRow> => c;
+  return {
+    gameId: col({ name: 'game_id', label: '경기 고유 ID (games 표와 연결)', type: 'id', value: (r) => r.game.id }),
+    gameDate: col({ name: 'game_date', label: '경기 날짜', type: 'date', value: (r) => isoDate(r.info.date) }),
+    eventSeq: col({ name: 'event_seq', label: '경기 안 기록 순번 (저장된 모든 기록 중 몇 번째, 1부터)', type: 'integer', value: (r) => r.eventSeq }),
+    paId: col({ name: 'pa_id', label: '타석 고유 ID (그 타석 첫 기록의 id)', type: 'id', value: (r) => plateAppearanceId(r.pa) }),
+    paSeq: col({ name: 'pa_seq', label: '경기 안 타석 번호 (기록한 타석 순서, 1부터)', type: 'integer', value: (r) => r.pa.number }),
+    sceneId: col({ name: 'scene_id', label: '장면 고유 ID (아이 등장 기록 id, 미니게임은 초·말로 만든 id)', type: 'id', value: (r) => r.pa.sceneId }),
+    sceneSeq: col({ name: 'scene_seq', label: '경기 안 장면 번호 (1부터)', type: 'integer', value: (r) => r.sceneSeq }),
+    childRole: col({ name: 'child_role', label: `${moment} 아이의 역할`, type: 'code', codes: codesOf(ROLES, ROLE_LABEL), value: (r) => childRoleOf(r.pa) }),
+    childPosition: col({
+      name: 'child_position',
+      label: '아이의 수비 자리 (공격 중이면 빈 칸)',
+      type: 'code',
+      codes: codesOf(FIELDING_POSITIONS, FIELDING_POSITION_LABEL),
+      value: (r) => codeOrNull(r.pa.fieldingPosition),
+    }),
+    childBase: col({ name: 'child_base', label: '아이가 있던 베이스 (주자가 아니면 빈 칸)', type: 'code', codes: BASE_CODES, value: (r) => (r.situation.childBase === null ? null : BASE_CODE[r.situation.childBase]) }),
+    batterActor: col({ name: 'batter_actor', label: '타자가 누구인지', type: 'code', codes: codesOf(ACTORS, ACTOR_LABEL), value: (r) => r.pa.actor }),
+    batterHand: col({ name: 'batter_hand', label: '타자가 서는 쪽 (고른 경우만)', type: 'code', codes: codesOf(BATTER_HANDS, BATTER_HAND_LABEL), value: (r) => r.pa.batterHand }),
+    batterGrade: col({ name: 'batter_grade', label: '상대 타자 학년 (고른 경우만)', type: 'integer', unit: '학년', value: (r) => r.pa.batterGrade }),
+    inning: col({ name: 'inning', label: '이닝', type: 'integer', unit: '회', value: (r) => r.pa.inning }),
+    half: col({ name: 'half', label: '초 / 말', type: 'code', codes: HALF_CODES, value: (r) => r.pa.half }),
+    outs: col({ name: 'outs_before', label: `${when} 아웃 수`, type: 'integer', unit: '개', value: (r) => r.situation.outs }),
+    on1b: col({ name: 'on_1b', label: `${when} 1루 주자`, type: 'binary', codes: BINARY_CODES, value: (r) => binary(r.situation.bases[0]) }),
+    on2b: col({ name: 'on_2b', label: `${when} 2루 주자`, type: 'binary', codes: BINARY_CODES, value: (r) => binary(r.situation.bases[1]) }),
+    on3b: col({ name: 'on_3b', label: `${when} 3루 주자`, type: 'binary', codes: BINARY_CODES, value: (r) => binary(r.situation.bases[2]) }),
+    balls: col({ name: 'balls_before', label: `${when} 볼 수`, type: 'integer', unit: '개', value: (r) => r.situation.count.balls }),
+    strikes: col({ name: 'strikes_before', label: `${when} 스트라이크 수`, type: 'integer', unit: '개', value: (r) => r.situation.count.strikes }),
+    runsInHalf: col({ name: 'runs_in_half_before', label: `이 초·말에 ${when}까지 기록으로 들어온 점수`, type: 'integer', unit: '점', value: (r) => r.situation.runsInHalf }),
+    scoreUs: col({
+      name: 'score_us_before',
+      label: `${when} 우리 팀 점수 (앞 초·말은 스코어보드 값, 이번 초·말은 기록에서 센 점수)`,
+      type: 'integer',
+      unit: '점',
+      value: (r) => r.scoreBefore.us,
+    }),
+    scoreThem: col({
+      name: 'score_them_before',
+      label: `${when} 상대 팀 점수 (앞 초·말은 스코어보드 값, 이번 초·말은 기록에서 센 점수)`,
+      type: 'integer',
+      unit: '점',
+      value: (r) => r.scoreBefore.them,
+    }),
+  };
+}
+
+// ---------- 공 표 ----------
+
+export interface PitchRow extends SituationRow {
+  readonly pitch: PitchEvent;
+  /** 타석 안에서 몇 번째 공인지 (1부터) */
+  readonly pitchSeq: number;
+  readonly edited: boolean;
+}
 
 const hasBattedSpot = (p: PitchEvent): boolean => p.battedBall !== undefined && p.battedBall.x !== null && p.battedBall.y !== null;
 
+const PITCH_SITUATION = situationColumns('던지기 전', '이 공 때');
+
 export const PITCH_COLUMNS: readonly Column<PitchRow>[] = [
-  { name: 'game_id', label: '경기 고유 ID (games 표와 연결)', type: 'id', value: (r) => r.game.id },
-  { name: 'game_date', label: '경기 날짜', type: 'date', value: (r) => isoDate(r.info.date) },
+  PITCH_SITUATION.gameId,
+  PITCH_SITUATION.gameDate,
   { name: 'pitch_id', label: '공 고유 ID (기록할 때 붙인 id, 바뀌지 않음)', type: 'id', value: (r) => r.pitch.id },
-  { name: 'event_seq', label: '경기 안 기록 순번 (저장된 모든 기록 중 몇 번째, 1부터)', type: 'integer', value: (r) => r.eventSeq },
-  { name: 'pa_id', label: '타석 고유 ID (그 타석 첫 기록의 id)', type: 'id', value: (r) => plateAppearanceId(r.pa) },
-  { name: 'pa_seq', label: '경기 안 타석 번호 (기록한 타석 순서, 1부터)', type: 'integer', value: (r) => r.pa.number },
+  PITCH_SITUATION.eventSeq,
+  PITCH_SITUATION.paId,
+  PITCH_SITUATION.paSeq,
   { name: 'pitch_seq', label: '타석 안 공 순번 (1부터)', type: 'integer', value: (r) => r.pitchSeq },
-  { name: 'scene_id', label: '장면 고유 ID (아이 등장 기록 id, 미니게임은 초·말로 만든 id)', type: 'id', value: (r) => r.pa.sceneId },
-  { name: 'scene_seq', label: '경기 안 장면 번호 (1부터)', type: 'integer', value: (r) => r.sceneSeq },
-  { name: 'child_role', label: '이 공 때 아이의 역할', type: 'code', codes: codesOf(ROLES, ROLE_LABEL), value: (r) => childRoleOf(r.pa) },
-  {
-    name: 'child_position',
-    label: '아이의 수비 자리 (공격 중이면 빈 칸)',
-    type: 'code',
-    codes: codesOf(FIELDING_POSITIONS, FIELDING_POSITION_LABEL),
-    value: (r) => codeOrNull(r.pa.fieldingPosition),
-  },
-  { name: 'child_base', label: '아이가 있던 베이스 (주자가 아니면 빈 칸)', type: 'code', codes: BASE_CODES, value: (r) => (r.situation.childBase === null ? null : BASE_CODE[r.situation.childBase]) },
-  { name: 'batter_actor', label: '타자가 누구인지', type: 'code', codes: codesOf(ACTORS, ACTOR_LABEL), value: (r) => r.pa.actor },
-  { name: 'batter_hand', label: '타자가 서는 쪽 (고른 경우만)', type: 'code', codes: codesOf(BATTER_HANDS, BATTER_HAND_LABEL), value: (r) => r.pa.batterHand },
-  { name: 'batter_grade', label: '상대 타자 학년 (고른 경우만)', type: 'integer', unit: '학년', value: (r) => r.pa.batterGrade },
-  { name: 'inning', label: '이닝', type: 'integer', unit: '회', value: (r) => r.pa.inning },
-  { name: 'half', label: '초 / 말', type: 'code', codes: HALF_CODES, value: (r) => r.pa.half },
-  { name: 'outs_before', label: '던지기 전 아웃 수', type: 'integer', unit: '개', value: (r) => r.situation.outs },
-  { name: 'on_1b', label: '던지기 전 1루 주자', type: 'binary', codes: BINARY_CODES, value: (r) => binary(r.situation.bases[0]) },
-  { name: 'on_2b', label: '던지기 전 2루 주자', type: 'binary', codes: BINARY_CODES, value: (r) => binary(r.situation.bases[1]) },
-  { name: 'on_3b', label: '던지기 전 3루 주자', type: 'binary', codes: BINARY_CODES, value: (r) => binary(r.situation.bases[2]) },
-  { name: 'balls_before', label: '던지기 전 볼 수', type: 'integer', unit: '개', value: (r) => r.countBefore.balls },
-  { name: 'strikes_before', label: '던지기 전 스트라이크 수', type: 'integer', unit: '개', value: (r) => r.countBefore.strikes },
-  { name: 'runs_in_half_before', label: '이 초·말에 던지기 전까지 기록으로 들어온 점수', type: 'integer', unit: '점', value: (r) => r.situation.runsInHalf },
-  {
-    name: 'score_us_before',
-    label: '던지기 전 우리 팀 점수 (앞 초·말은 스코어보드 값, 이번 초·말은 기록에서 센 점수)',
-    type: 'integer',
-    unit: '점',
-    value: (r) => r.scoreBefore.us,
-  },
-  {
-    name: 'score_them_before',
-    label: '던지기 전 상대 팀 점수 (앞 초·말은 스코어보드 값, 이번 초·말은 기록에서 센 점수)',
-    type: 'integer',
-    unit: '점',
-    value: (r) => r.scoreBefore.them,
-  },
+  PITCH_SITUATION.sceneId,
+  PITCH_SITUATION.sceneSeq,
+  PITCH_SITUATION.childRole,
+  PITCH_SITUATION.childPosition,
+  PITCH_SITUATION.childBase,
+  PITCH_SITUATION.batterActor,
+  PITCH_SITUATION.batterHand,
+  PITCH_SITUATION.batterGrade,
+  PITCH_SITUATION.inning,
+  PITCH_SITUATION.half,
+  PITCH_SITUATION.outs,
+  PITCH_SITUATION.on1b,
+  PITCH_SITUATION.on2b,
+  PITCH_SITUATION.on3b,
+  PITCH_SITUATION.balls,
+  PITCH_SITUATION.strikes,
+  PITCH_SITUATION.runsInHalf,
+  PITCH_SITUATION.scoreUs,
+  PITCH_SITUATION.scoreThem,
   {
     name: 'pitch_result',
     label: '공 결과 (스트라이크는 헛스윙·지켜봄을 나누지 않음)',
@@ -223,13 +269,84 @@ export const PITCH_COLUMNS: readonly Column<PitchRow>[] = [
   { name: 'batted_strength', label: '타구 세기 (고른 경우만)', type: 'code', codes: codesOf(BATTED_BALL_STRENGTHS, BATTED_BALL_STRENGTH_LABEL), value: (r) => codeOrNull(r.pitch.battedBall?.strength) },
   { name: 'batted_x', label: '낙구 지점 가로 (야구장 그림, 0=왼쪽 1=오른쪽, 홈플레이트는 아래 가운데)', type: 'number', unit: '그림 폭 비율 0~1', value: (r) => (hasBattedSpot(r.pitch) ? (r.pitch.battedBall?.x ?? null) : null) },
   { name: 'batted_y', label: '낙구 지점 세로 (야구장 그림, 0=위 1=아래)', type: 'number', unit: '그림 높이 비율 0~1', value: (r) => (hasBattedSpot(r.pitch) ? (r.pitch.battedBall?.y ?? null) : null) },
-  { name: 'fielding_putout', label: '아이가 이 공에서 잡아서 아웃(자살) (수비 중일 때만, 포수 삼진 자동 자살은 넣지 않음)', type: 'binary', codes: BINARY_CODES, value: (r) => fieldingFlag(r, 'putout') },
-  { name: 'fielding_assist', label: '아이가 이 공에서 던져서 아웃 도움(보살) (수비 중일 때만)', type: 'binary', codes: BINARY_CODES, value: (r) => fieldingFlag(r, 'assist') },
-  { name: 'fielding_error', label: '아이가 이 공에서 실책 (수비 중일 때만)', type: 'binary', codes: BINARY_CODES, value: (r) => fieldingFlag(r, 'error') },
+  { name: 'fielding_putout', label: '아이가 이 공에서 잡아서 아웃(자살) (수비 중일 때만, 포수 삼진 자동 자살은 넣지 않음)', type: 'binary', codes: BINARY_CODES, value: (r) => fieldingFlag(r, r.pitch.fielding, 'putout') },
+  { name: 'fielding_assist', label: '아이가 이 공에서 던져서 아웃 도움(보살) (수비 중일 때만)', type: 'binary', codes: BINARY_CODES, value: (r) => fieldingFlag(r, r.pitch.fielding, 'assist') },
+  { name: 'fielding_error', label: '아이가 이 공에서 실책 (수비 중일 때만)', type: 'binary', codes: BINARY_CODES, value: (r) => fieldingFlag(r, r.pitch.fielding, 'error') },
   { name: 'pa_outcome', label: '이 공이 속한 타석의 결과 (진행 중이면 빈 칸)', type: 'code', codes: codesOf(OUTCOMES, OUTCOME_LABEL), value: (r) => codeOrNull(r.pa.outcome) },
   { name: 'edited', label: '나중에 고친 공인지 (값은 고친 뒤 기준)', type: 'binary', codes: BINARY_CODES, value: (r) => binary(r.edited) },
   { name: 'created_at', label: '이 공을 기록한 시각', type: 'datetime', value: (r) => r.pitch.createdAt },
   { name: 'author', label: '기록한 사람', type: 'text', value: (r) => r.pitch.author },
+];
+
+// ---------- 주자 상황 표 ----------
+
+export interface PlayRow extends SituationRow {
+  readonly play: PlayEvent;
+  /** 같은 타석에서 이 일보다 먼저 던진 공 수 */
+  readonly pitchesBefore: number;
+}
+
+/** 그 주자가 있던 베이스. 예전 2루 도루 기록은 1루 주자다. 실책 진루처럼 베이스가 없으면 null */
+function runnerBaseOf(play: PlayEvent): BaseIndex | null {
+  if (play.play === 'stolenSecond' || play.play === 'caughtStealingSecond') return 0;
+  return play.base ?? null;
+}
+
+const PLAY_SITUATION = situationColumns('일어나기 전', '이 일 때');
+
+export const PLAY_COLUMNS: readonly Column<PlayRow>[] = [
+  PLAY_SITUATION.gameId,
+  PLAY_SITUATION.gameDate,
+  { name: 'play_id', label: '주자 상황 고유 ID (기록할 때 붙인 id, 바뀌지 않음)', type: 'id', value: (r) => r.play.id },
+  PLAY_SITUATION.eventSeq,
+  PLAY_SITUATION.paId,
+  PLAY_SITUATION.paSeq,
+  { name: 'pitches_before', label: '같은 타석에서 이 일보다 먼저 던진 공 수 (pitches 표의 pitch_seq와 맞춰 순서를 본다)', type: 'integer', unit: '개', value: (r) => r.pitchesBefore },
+  PLAY_SITUATION.sceneId,
+  PLAY_SITUATION.sceneSeq,
+  PLAY_SITUATION.childRole,
+  PLAY_SITUATION.childPosition,
+  PLAY_SITUATION.childBase,
+  PLAY_SITUATION.batterActor,
+  PLAY_SITUATION.batterHand,
+  PLAY_SITUATION.batterGrade,
+  PLAY_SITUATION.inning,
+  PLAY_SITUATION.half,
+  PLAY_SITUATION.outs,
+  PLAY_SITUATION.on1b,
+  PLAY_SITUATION.on2b,
+  PLAY_SITUATION.on3b,
+  PLAY_SITUATION.balls,
+  PLAY_SITUATION.strikes,
+  PLAY_SITUATION.runsInHalf,
+  PLAY_SITUATION.scoreUs,
+  PLAY_SITUATION.scoreThem,
+  { name: 'play_kind', label: '주자 상황 종류', type: 'code', codes: codesOf(PLAY_KINDS, PLAY_KIND_LABEL), value: (r) => snakeCode(r.play.play) },
+  {
+    name: 'runner_base',
+    label: '그 주자가 있던 베이스 (도루는 출발한 베이스, 실책 진루처럼 정하지 않았으면 빈 칸)',
+    type: 'code',
+    codes: BASE_CODES,
+    value: (r) => {
+      const base = runnerBaseOf(r.play);
+      return base === null ? null : BASE_CODE[base];
+    },
+  },
+  {
+    name: 'runner_is_child',
+    label: '그 주자가 우리 아이인지 (베이스가 없으면 빈 칸)',
+    type: 'binary',
+    codes: BINARY_CODES,
+    value: (r) => {
+      const base = runnerBaseOf(r.play);
+      return base === null ? null : binary(r.situation.childBase === base);
+    },
+  },
+  { name: 'fielding_putout', label: '아이가 이 일에서 잡아서 아웃(자살) (수비 중일 때만)', type: 'binary', codes: BINARY_CODES, value: (r) => fieldingFlag(r, r.play.fielding, 'putout') },
+  { name: 'fielding_assist', label: '아이가 이 일에서 던져서 아웃 도움(보살) (수비 중일 때만)', type: 'binary', codes: BINARY_CODES, value: (r) => fieldingFlag(r, r.play.fielding, 'assist') },
+  { name: 'fielding_error', label: '아이가 이 일에서 실책 (수비 중일 때만)', type: 'binary', codes: BINARY_CODES, value: (r) => fieldingFlag(r, r.play.fielding, 'error') },
+  { name: 'created_at', label: '이 일을 기록한 시각', type: 'datetime', value: (r) => r.play.createdAt },
+  { name: 'author', label: '기록한 사람', type: 'text', value: (r) => r.play.author },
 ];
 
 // ---------- 경기 표 ----------
@@ -289,34 +406,63 @@ function undoable(game: Game): UndoableEvent[] {
   return activeEvents(game.events);
 }
 
+/** 한 경기에서 줄을 만들 때 함께 쓰는 값 */
+interface GameContext {
+  readonly game: Game;
+  readonly info: GameInfo;
+  readonly line: LineScore;
+  readonly eventSeq: ReadonlyMap<string, number>;
+  readonly sceneSeq: ReadonlyMap<string, number>;
+}
+
+function contextOf(game: Game, replay: GameReplay): GameContext {
+  return {
+    game,
+    info: gameInfo(game),
+    line: lineScore(replay, undoable(game)),
+    eventSeq: new Map(game.events.map((e, i) => [e.id, i + 1])),
+    sceneSeq: new Map(replay.scenes.map((s, i) => [s.id, i + 1])),
+  };
+}
+
+/** 공·주자 상황 하나의 공통 상황 열 값 */
+function situationRow(ctx: GameContext, pa: PlateAppearance, eventId: string, situation: SituationBefore): SituationRow {
+  return {
+    game: ctx.game,
+    info: ctx.info,
+    pa,
+    eventSeq: ctx.eventSeq.get(eventId) ?? 0,
+    sceneSeq: ctx.sceneSeq.get(pa.sceneId) ?? 0,
+    situation,
+    scoreBefore: scoreBefore(ctx.line, ctx.info.battingFirst, pa.inning, pa.half, situation.runsInHalf),
+  };
+}
+
 export function pitchRowsOf(game: Game, replay: GameReplay): PitchRow[] {
-  const info = gameInfo(game);
-  const line = lineScore(replay, undoable(game));
-  const eventSeq = new Map(game.events.map((e, i) => [e.id, i + 1]));
-  const sceneSeq = new Map(replay.scenes.map((s, i) => [s.id, i + 1]));
+  const ctx = contextOf(game, replay);
   const edited = editedPitchIds(game);
-  const rows: PitchRow[] = [];
-  for (const pa of replay.plateAppearances) {
-    let count = pa.startCount;
-    pa.pitches.forEach((pitch, i) => {
-      const situation = pa.pitchSituations[i];
-      rows.push({
-        game,
-        info,
-        pa,
-        pitch,
-        pitchSeq: i + 1,
-        eventSeq: eventSeq.get(pitch.id) ?? 0,
-        sceneSeq: sceneSeq.get(pa.sceneId) ?? 0,
-        situation,
-        countBefore: count,
-        scoreBefore: scoreBefore(line, info.battingFirst, pa.inning, pa.half, situation.runsInHalf),
-        edited: edited.has(pitch.id),
-      });
-      count = applyPitch(count, pitch.result).next;
-    });
-  }
-  return rows;
+  return replay.plateAppearances.flatMap((pa) =>
+    pa.pitches.map((pitch, i) => ({
+      ...situationRow(ctx, pa, pitch.id, pa.pitchSituations[i]),
+      pitch,
+      pitchSeq: i + 1,
+      edited: edited.has(pitch.id),
+    })),
+  );
+}
+
+export function playRowsOf(game: Game, replay: GameReplay): PlayRow[] {
+  const ctx = contextOf(game, replay);
+  return replay.plateAppearances.flatMap((pa) =>
+    pa.plays.map((play, i) => {
+      const at = pa.timeline.indexOf(play);
+      return {
+        ...situationRow(ctx, pa, play.id, pa.playSituations[i]),
+        play,
+        pitchesBefore: pa.timeline.slice(0, at).filter((e) => e.kind === 'pitch').length,
+      };
+    }),
+  );
 }
 
 export function gameRowOf(game: Game, replay: GameReplay): GameRow {
@@ -345,6 +491,11 @@ export function analysisPitchesCsv(games: readonly Game[], replayOf: (g: Game) =
   return toCsv(PITCH_COLUMNS, games.flatMap((g) => pitchRowsOf(g, replayOf(g))));
 }
 
+/** 주자 상황 표 (견제·도루·실책 진루·주자 아웃) */
+export function analysisPlaysCsv(games: readonly Game[], replayOf: (g: Game) => GameReplay): string {
+  return toCsv(PLAY_COLUMNS, games.flatMap((g) => playRowsOf(g, replayOf(g))));
+}
+
 /** 경기 표 */
 export function analysisGamesCsv(games: readonly Game[], replayOf: (g: Game) => GameReplay): string {
   return toCsv(GAME_COLUMNS, games.map((g) => gameRowOf(g, replayOf(g))));
@@ -352,7 +503,7 @@ export function analysisGamesCsv(games: readonly Game[], replayOf: (g: Game) => 
 
 // ---------- 코드북 ----------
 
-export type AnalysisFileKind = 'pitches' | 'games' | 'codebook';
+export type AnalysisFileKind = 'pitches' | 'plays' | 'games' | 'codebook';
 
 /** 파일 이름. 예: yagumam_pitches_v1_2026-11-06.csv */
 export function analysisFileName(kind: AnalysisFileKind, today: string): string {
@@ -401,7 +552,7 @@ export function analysisCodebook(generatedAt: string, appVersion: string): strin
     '## ID와 연결',
     '',
     '- `game_id`: 경기를 만들 때 붙인 고유 ID. 두 표를 이 열로 연결한다.',
-    '- `pitch_id`: 공을 기록할 때 붙인 고유 ID. 공을 나중에 고쳐도 그대로라서 다시 내려받아도 같은 공을 찾을 수 있다.',
+    '- `pitch_id` · `play_id`: 공·주자 상황을 기록할 때 붙인 고유 ID. 공을 나중에 고쳐도 그대로라서 다시 내려받아도 같은 공을 찾을 수 있다.',
     '- `event_seq`: 경기에 저장된 모든 기록(공·주자 상황·고침·취소 등) 중 몇 번째인지. 기록은 덧붙이기만 하므로 바뀌지 않는다. 경기 안 시간 순서로 정렬할 때 쓴다.',
     '- `pa_id`: 타석의 첫 기록 id. `pa_seq`(타석 번호)는 앞 타석을 취소하면 밀릴 수 있지만 `pa_id`는 그 첫 기록을 취소하지 않는 한 그대로다.',
     '- 경기 안 투구·주자 상황 순서는 `pa_seq`, `pitch_seq` 또는 `event_seq`로 정렬한다.',
@@ -409,6 +560,13 @@ export function analysisCodebook(generatedAt: string, appVersion: string): strin
     `## pitches 표 (공 하나당 한 줄, ${PITCH_COLUMNS.length}개 열)`,
     '',
     ...columnTable(PITCH_COLUMNS),
+    '',
+    `## plays 표 (주자 상황 하나당 한 줄: 견제·도루·실책 진루·주자 아웃, ${PLAY_COLUMNS.length}개 열)`,
+    '',
+    '- 공과 공 사이에 일어난 일이다. 상황 열은 그 일이 일어나기 직전 값이고, 뜻은 pitches 표의 같은 이름 열과 같다.',
+    '- 공과 함께 시간 순서로 보려면 두 표를 합쳐 `game_id`, `event_seq`로 정렬한다.',
+    '',
+    ...columnTable(PLAY_COLUMNS),
     '',
     `## games 표 (경기 하나당 한 줄, ${GAME_COLUMNS.length}개 열)`,
     '',

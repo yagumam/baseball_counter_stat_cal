@@ -16,6 +16,7 @@ import {
   PitchResult,
   PitchType,
   PlayEvent,
+  PlayKind,
   Position,
   Role,
   TotalField,
@@ -217,6 +218,7 @@ export const DOWNLOAD_LABEL = { json: '백업 파일 (JSON)', csv: '표 파일 (
 export const ANALYSIS_DOWNLOAD_LABEL = {
   title: '분석용 내려받기',
   pitches: '공 표 (분석용 CSV)',
+  plays: '주자 상황 표 (분석용 CSV)',
   games: '경기 표 (분석용 CSV)',
   codebook: '변수 설명서 (코드북)',
 } as const;
@@ -325,6 +327,18 @@ export const CHOOSER_QUESTION: Record<Exclude<RunnerAction, 'error'>, string> = 
   stolenBase: '누가 도루했나요?',
   caughtStealing: '누가 도루하다 잡혔나요?',
   runnerOut: '어느 주자가 아웃됐나요? (지금 있는 베이스)',
+};
+
+/** 주자 상황 종류 (분석용 내려받기 코드북). 화면 문구는 playLabel이 베이스까지 붙여 만든다. */
+export const PLAY_KIND_LABEL: Record<PlayKind, string> = {
+  pickoff: '견제 (주자 살아남)',
+  pickoffOut: '견제 아웃',
+  stolenBase: '도루 성공',
+  caughtStealing: '도루 실패',
+  error: '실책으로 주자 이동',
+  runnerOut: '주자 아웃 (주루사)',
+  stolenSecond: '2루 도루 성공 (예전 기록)',
+  caughtStealingSecond: '2루 도루 실패 (예전 기록)',
 };
 
 function playLabel(play: PlayEvent): string {
