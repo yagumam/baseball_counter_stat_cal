@@ -40,7 +40,7 @@ import { FIELDING_PLAYS, PlayFieldingDraft } from './common/fielding-view';
 import { BatterDraft } from './common/batter-info-view';
 import { TipKey, hasSeenTip, markTipSeen } from './common/tips';
 import { OUTS_PER_INNING } from './common/count';
-import { settingsView } from './common/settings-view';
+import { SheetSyncView, settingsView } from './common/settings-view';
 import {
   Game,
   GameInfo,
@@ -95,6 +95,8 @@ import { batterLine } from './batter/summary';
 import { pitcherLine } from './pitcher/summary';
 import { fielderLine } from './fielder/summary';
 import { monthOf } from './common/calendar';
+import { pendingSync, validSyncUrl } from './common/sheet-sync';
+import { createSheetSync } from './common/sheet-sync-client';
 
 const STORAGE_KEY = 'baseball-counter.games.v3';
 const LEGACY_STORAGE_KEYS = ['baseball-counter.pitcher.games.v2', 'baseball-counter.pitcher.games.v1'];
@@ -332,8 +334,17 @@ export function mountApp(root: HTMLElement): void {
     state.analysisGameIds = id === null ? [] : [id];
   };
 
+  // 기록 함께 모으기: 보낼 시트 주소는 빌드할 때 넣는다(GitHub 비밀 값 SHEET_SYNC_URL). 없으면 이 기능은 보이지 않는다.
+  const syncUrl = validSyncUrl(import.meta.env.VITE_SHEET_SYNC_URL);
+  const sheetSync = syncUrl
+    ? createSheetSync(syncUrl, () => state.games, replayOf, () => {
+        if (state.tab === 'settings') render();
+      })
+    : null;
+
   const persist = (): void => {
     if (!saveGames(STORAGE_KEY, state.games)) state.notice = '기록을 저장하지 못했습니다. 저장 공간을 확인하세요.';
+    sheetSync?.schedule();
   };
 
   const replaceGame = (game: Game): void => {
@@ -1085,6 +1096,7 @@ export function mountApp(root: HTMLElement): void {
           // 첫 화면(경기가 하나도 없을 때)에서 불러왔다면 새 경기 입력 대신 경기 목록을 보여준다.
           if (state.form?.gameId === null && merged.games.length > 0) state.form = null;
           if (state.currentGameId === null) chooseGame(state.games[state.games.length - 1]?.id ?? null);
+          sheetSync?.schedule();
           state.notice = saveGames(STORAGE_KEY, state.games)
             ? mergeSummary(merged)
             : '불러온 기록을 저장하지 못했습니다. 저장 공간을 확인하세요. 앱을 닫으면 불러온 기록이 사라집니다.';
@@ -1097,9 +1109,25 @@ export function mountApp(root: HTMLElement): void {
     },
   };
 
+  const sheetSyncView = (): SheetSyncView | null => {
+    if (!sheetSync) return null;
+    const syncState = sheetSync.state();
+    const { changed, deletedIds } = pendingSync(state.games, syncState.synced);
+    return {
+      status: { state: syncState, busy: sheetSync.busy(), pending: changed.length + deletedIds.length },
+      actions: {
+        setEnabled: (on) => sheetSync.setEnabled(on),
+        syncNow: () => void sheetSync.syncNow(),
+        deleteMine: () => void sheetSync.deleteMine(),
+      },
+    };
+  };
+
   const renderBody = (game: Game | undefined): HTMLElement => {
     if (state.helpOpen) return manualView(helpActions);
-    if (state.tab === 'settings') return settingsView(state.hand, state.orientation, state.childBatterHand, state.teamName, state.games.length > 0, state.lastBackupAt, settingsActions);
+    if (state.tab === 'settings') {
+      return settingsView(state.hand, state.orientation, state.childBatterHand, state.teamName, state.games.length > 0, state.lastBackupAt, settingsActions, sheetSyncView());
+    }
     const shown = resultGame();
     if (state.tab === 'games' && shown && !state.form) {
       const shownReplay = replayOf(shown);
@@ -1243,4 +1271,7 @@ export function mountApp(root: HTMLElement): void {
 
   applyOrientation(state.orientation);
   render();
+  // 앱을 열 때와 인터넷이 다시 될 때, 못 보낸 기록이 있으면 보낸다.
+  sheetSync?.schedule();
+  window.addEventListener('online', () => sheetSync?.schedule());
 }

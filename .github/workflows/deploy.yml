@@ -28,6 +28,9 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # 기록 함께 모으기: 개발자 시트의 Apps Script 웹 앱 주소 (docs/sheet-sync.md). 없으면 이 기능은 숨는다.
+          VITE_SHEET_SYNC_URL: ${{ secrets.SHEET_SYNC_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

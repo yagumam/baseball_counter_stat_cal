@@ -3576,3 +3576,20 @@ input[type='file'].visually-hidden {
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* ── 기록 함께 모으기 (설정 탭) ── */
+.sheet-sync-buttons,
+.sheet-sync-remove {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sheet-sync-remove .help {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.sheet-sync-remove > .secondary:only-child {
+  grid-column: 1 / -1;
+}
