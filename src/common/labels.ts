@@ -213,6 +213,14 @@ export const HAND_LABEL: Record<Hand, string> = { right: '오른손', left: '왼
 /** 데이터 내려받기 버튼 */
 export const DOWNLOAD_LABEL = { json: '백업 파일 (JSON)', csv: '표 파일 (CSV, 엑셀)' } as const;
 
+/** 설정 → 데이터 관리 → 분석용 내려받기 (통계 프로그램용 CSV와 변수 설명서) */
+export const ANALYSIS_DOWNLOAD_LABEL = {
+  title: '분석용 내려받기',
+  pitches: '공 표 (분석용 CSV)',
+  games: '경기 표 (분석용 CSV)',
+  codebook: '변수 설명서 (코드북)',
+} as const;
+
 export const IMPORT_LABEL = '백업 파일 불러오기';
 
 /** 한 번 눌러 백업: 휴대폰 공유 창으로 카카오톡·구글 드라이브 등에 보낸다 */
@@ -397,7 +405,7 @@ export function eventLabel(event: UndoableEvent): string {
   }
 }
 
-const OUTCOME_LABEL: Record<PlateAppearanceOutcome, string> = {
+export const OUTCOME_LABEL: Record<PlateAppearanceOutcome, string> = {
   walk: '볼넷',
   strikeout: '삼진',
   hit: '안타',

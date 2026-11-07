@@ -17,6 +17,9 @@ import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner'
 import { gamesChangedSince, loadLastBackup, loadReminderDismissed, saveLastBackup, saveReminderDismissed, shouldShowReminder } from './common/backup-reminder';
 import { downloadFile, shareFile } from './common/download';
 import { backupFileName, backupJson, pitchesCsv, pitchesFileName } from './common/export';
+import { analysisCodebook, analysisFileName, analysisGamesCsv, analysisPitchesCsv } from './common/analysis-export';
+import { DownloadKind } from './common/data-section';
+import { APP_VERSION } from './common/version';
 import { EMPTY_PITCH_DETAIL, FieldDraft, PitchDetail, PitchSheet, isBattedResult } from './common/pitch-detail-view';
 import {
   Hand,
@@ -209,6 +212,23 @@ function childSummary(games: readonly Game[]): string[] {
     ['', fielderLine(forStats)],
   ];
   return lines.filter(([, line]) => line !== null).map(([role, line]) => (role ? `${role}: ${line}` : (line as string)));
+}
+
+/** 설정 → 데이터 관리에서 내려받는 파일 */
+function downloadFileOf(kind: DownloadKind, games: readonly Game[]): { name: string; data: string; type: string } {
+  const csv = 'text/csv;charset=utf-8';
+  switch (kind) {
+    case 'backup':
+      return { name: backupFileName(games, today(), 'json'), data: backupJson(games, new Date().toISOString()), type: 'application/json' };
+    case 'pitches':
+      return { name: pitchesFileName(today()), data: pitchesCsv(games, replayOf), type: 'text/csv' };
+    case 'analysisPitches':
+      return { name: analysisFileName('pitches', today()), data: analysisPitchesCsv(games, replayOf), type: csv };
+    case 'analysisGames':
+      return { name: analysisFileName('games', today()), data: analysisGamesCsv(games, replayOf), type: csv };
+    case 'codebook':
+      return { name: analysisFileName('codebook', today()), data: analysisCodebook(new Date().toISOString(), APP_VERSION), type: 'text/markdown;charset=utf-8' };
+  }
 }
 
 export function replayOf(game: Game): GameReplay {
@@ -1019,11 +1039,8 @@ export function mountApp(root: HTMLElement): void {
       state.teamName = name;
       saveTeamName(name);
     },
-    download: (kind: 'backup' | 'pitches') => {
-      const file =
-        kind === 'backup'
-          ? { name: backupFileName(state.games, today(), 'json'), data: backupJson(state.games, new Date().toISOString()), type: 'application/json' }
-          : { name: pitchesFileName(today()), data: pitchesCsv(state.games, replayOf), type: 'text/csv' };
+    download: (kind: DownloadKind) => {
+      const file = downloadFileOf(kind, state.games);
       void downloadFile(file.name, file.data, file.type).then((result) => {
         if (result === 'saved') {
           // 백업 파일을 받았으면 백업한 것으로 본다. (표 파일은 다시 불러올 수 없으므로 백업이 아니다)
