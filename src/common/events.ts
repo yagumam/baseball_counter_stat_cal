@@ -30,6 +30,11 @@ export const PITCH_RESULTS: readonly PitchResult[] = [
   'hitByPitch',
 ];
 
+/** 공이 빠져 주자가 한 칸씩 가는 결과: 와일드피치(투수 탓) · 포일(포수 탓) */
+export function isLooseBall(result: PitchResult): boolean {
+  return result === 'wildPitch' || result === 'passedBall';
+}
+
 /** 안타 종류. 예전 기록처럼 종류가 없으면 1루타로 본다. */
 export type HitType = 'single' | 'double' | 'triple' | 'homeRun';
 
@@ -218,6 +223,8 @@ export interface PitchEvent extends EventBase {
   readonly doublePlay?: BaseIndex;
   /** 희생번트·희생플라이·진루타: result가 'out'일 때 아웃의 종류 */
   readonly outType?: OutType;
+  /** 와일드피치·포일 때 3루 주자가 홈으로 뛰다 아웃됨 (없으면 홈인) */
+  readonly runnerOutAtHome?: true;
 }
 
 export interface PlayEvent extends EventBase {
@@ -393,8 +400,10 @@ function applyEdit(pitch: PitchEvent, edit: EditEvent): PitchEvent {
 }
 
 function applyResultEdit(pitch: PitchEvent, edit: EditEvent & { result: PitchResult }): PitchEvent {
-  const { hitType: _hit, doublePlay, outType, battedBall, ...rest } = pitch;
+  const { hitType: _hit, doublePlay, outType, battedBall, runnerOutAtHome, ...rest } = pitch;
   const stillOut = edit.result === 'out' && pitch.result === 'out';
+  // 와일드피치 ↔ 포일로 고치면 홈 아웃은 그대로 둔다. 다른 결과로 고치면 뺀다.
+  const stillLoose = isLooseBall(edit.result) && isLooseBall(pitch.result);
   const batted = edit.result === 'hit' || edit.result === 'out' || edit.result === 'reachedOnError';
   return {
     ...rest,
@@ -403,6 +412,7 @@ function applyResultEdit(pitch: PitchEvent, edit: EditEvent & { result: PitchRes
     ...(stillOut && doublePlay !== undefined ? { doublePlay } : {}),
     ...(stillOut && outType !== undefined ? { outType } : {}),
     ...(batted && battedBall !== undefined ? { battedBall } : {}),
+    ...(stillLoose && runnerOutAtHome !== undefined ? { runnerOutAtHome } : {}),
   };
 }
 
@@ -480,7 +490,8 @@ export function isLogEvent(value: unknown): value is LogEvent {
         (value.fielding === undefined || isFieldingCredits(value.fielding)) &&
         (value.doublePlay === undefined || (value.result === 'out' && isCount(value.doublePlay, 0, 2))) &&
         (value.outType === undefined ||
-          (value.result === 'out' && value.doublePlay === undefined && OUT_TYPES.includes(value.outType as OutType)))
+          (value.result === 'out' && value.doublePlay === undefined && OUT_TYPES.includes(value.outType as OutType))) &&
+        (value.runnerOutAtHome === undefined || (value.runnerOutAtHome === true && isLooseBall(value.result as PitchResult)))
       );
     case 'play':
       return (

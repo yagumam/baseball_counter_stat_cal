@@ -45,6 +45,7 @@ import {
   Bases,
   HIT_BASES,
   FieldingPosition,
+  isLooseBall,
   Half,
   HitType,
   PitchEvent,
@@ -541,11 +542,19 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     pa.timeline.push(event);
     pa.pitches.push(event);
     pa.pitchSituations.push(situationOf(s, pa, halfTotals));
+    // 3루 주자가 홈으로 뛰다 아웃되면, 그 주자를 먼저 빼고 남은 주자만 한 칸씩 옮긴다.
+    if (event.runnerOutAtHome && isLooseBall(event.result)) outAtHome(s, pa);
     if (event.result === 'wildPitch') applyAdvance(s, advanceRunners(s.runners, 1), pa);
     // 포일로 들어온 점수는 비자책이다 (공식 야구 규칙 9.16(a)). 이어서 고친 점수도 같은 플레이로 본다.
     if (event.result === 'passedBall') {
       applyAdvance(s, advanceRunners(s.runners, 1), pa, true);
       s.errorPending = true;
+    }
+    // 홈 아웃이 세 번째 아웃이면 공의 결과(볼·볼넷)는 따지지 않고 이닝을 끝낸다. 같은 타자가 다음 이닝에 다시 친다.
+    if (s.outs >= OUTS_PER_INNING) {
+      endHalfIfOver(s);
+      endIfChildDone(s);
+      return;
     }
     const applied = applyPitch(pa.count, event.result);
     if (!applied.outcome) {
@@ -584,6 +593,16 @@ export function replayGame(events: readonly PlayLogEvent[], settings: ReplaySett
     closePa(s, applied.outcome, pa.count);
     endHalfIfOver(s);
     endIfChildDone(s);
+  };
+
+  /** 와일드피치·포일 때 3루 주자가 홈에서 아웃: 3루 주자를 빼고 아웃 하나. 3루 주자가 없으면 아무 일도 없다. */
+  const outAtHome = (s: OpenScene, pa: OpenPlateAppearance): void => {
+    const third: BaseIndex = 2;
+    if (!toBases(s.runners)[third]) return;
+    if (childBaseOf(s.runners) === third) childEvent(s, 'out', third);
+    s.runners = removeRunner(s.runners, third).runners;
+    s.outs += 1;
+    pa.outsRecorded += 1;
   };
 
   /** 병살의 두 번째 아웃: 그 베이스의 주자를 아웃시킨다. 다른 주자는 그대로 두고, 더 간 경우는 사용자가 고친다. */

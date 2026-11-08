@@ -334,3 +334,19 @@ describe('볼삼비 (투수)', () => {
     expect(none.note).toBe('볼넷이 0이라 계산할 수 없음');
   });
 });
+
+describe('와일드피치 때 3루 주자 홈에서 아웃', () => {
+  // 3루 주자 와일드피치 홈 아웃(1아웃) → 삼진 2개: 잡은 아웃 3, 실점 0, 와일드피치 1
+  const game = asGame('11월 8일 ○○전', [
+    appear('pitcher', { bases: [false, false, true] }),
+    pitchWith('wildPitch', { runnerOutAtHome: true }),
+    ...pitches('strike', 'strike', 'strike'),
+    ...pitches('strike', 'strike', 'strike'),
+  ]);
+
+  it('던진 이닝 1, 실점 0, 와일드피치 1', () => {
+    expect(inningsPitched([game]).display).toBe('1');
+    expect(runsAllowed([game]).value).toBe(0);
+    expect(wildPitches([game]).value).toBe(1);
+  });
+});

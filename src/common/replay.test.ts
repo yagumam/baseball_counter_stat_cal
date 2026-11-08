@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeEvents, EditEvent, LogEvent, PlayLogEvent, playEvents } from './events';
+import { activeEvents, EditEvent, isLogEvent, LogEvent, PlayLogEvent, playEvents } from './events';
 import { replayGame } from './replay';
 import { adjust, appear, exit, gameEnd, hit, pitchWith, pitches, play, settings } from './test-helpers';
 
@@ -295,6 +295,22 @@ describe('지난 공 고치기', () => {
     expect(events).toHaveLength(4);
   });
 
+  it('홈 아웃이 붙은 와일드피치: 포일로 고치면 그대로, 볼로 고치면 홈 아웃이 빠진다', () => {
+    const wp = pitchWith('wildPitch', { runnerOutAtHome: true });
+    const start = appear('pitcher', { bases: [false, false, true] });
+    const toPassed = activeEvents([start, wp, edit(wp.id, 'passedBall')])[1];
+    const toBall = activeEvents([start, wp, edit(wp.id, 'ball')])[1];
+    expect(toPassed).toMatchObject({ result: 'passedBall', runnerOutAtHome: true });
+    expect(toBall).toMatchObject({ result: 'ball' });
+    expect('runnerOutAtHome' in toBall).toBe(false);
+  });
+
+  it('홈 아웃은 와일드피치·포일에만 저장할 수 있다', () => {
+    expect(isLogEvent(pitchWith('passedBall', { runnerOutAtHome: true }))).toBe(true);
+    expect(isLogEvent({ ...pitchWith('ball', {}), runnerOutAtHome: true })).toBe(false);
+    expect(isLogEvent({ ...pitchWith('wildPitch', {}), runnerOutAtHome: false })).toBe(false);
+  });
+
   it('아웃을 2루타로 고치면 안타가 되고, 아웃에만 붙던 병살·아웃 종류는 빠진다', () => {
     const out = pitchWith('out', { outType: 'productive' });
     const events: LogEvent[] = [appear('pitcher', { bases: [true, false, false] }), out, edit(out.id, 'hit', 'double')];
@@ -380,6 +396,47 @@ describe('포일', () => {
   it('수비 실책(E)으로 세지 않는다', () => {
     const r = asPitcher(adjust(1, 0, [true, false, false]), ...pitches('passedBall'));
     expect(r.halves.get('1T')?.errors).toBe(0);
+  });
+});
+
+describe('와일드피치 · 포일 때 3루 주자가 홈에서 아웃', () => {
+  it('1·3루 와일드피치, 3루 주자 홈에서 아웃: 점수 없이 1아웃, 1루 주자는 2루로, 볼 하나', () => {
+    const r = asPitcher(adjust(1, 0, [true, false, true]), pitchWith('wildPitch', { runnerOutAtHome: true }));
+    expect(r.state?.bases).toEqual([false, true, false]);
+    expect(r.state?.outs).toBe(1);
+    expect(r.state?.count).toEqual({ balls: 1, strikes: 0 });
+    expect(r.halves.get('1T')?.runs).toBe(0);
+    const [pa] = r.plateAppearances;
+    expect([pa.runs, pa.outsRecorded, pa.outcome]).toEqual([0, 1, null]);
+  });
+
+  it('포일도 같다', () => {
+    const r = asPitcher(adjust(1, 0, [false, false, true]), pitchWith('passedBall', { runnerOutAtHome: true }));
+    expect([r.state?.outs, r.state?.bases, r.halves.get('1T')?.runs]).toEqual([1, [false, false, false], 0]);
+    expect(r.plateAppearances[0].unearnedRuns).toBe(0);
+  });
+
+  it('고르지 않으면 지금처럼 홈인 1점', () => {
+    expect(asPitcher(adjust(1, 0, [false, false, true]), ...pitches('wildPitch')).halves.get('1T')?.runs).toBe(1);
+  });
+
+  it('2아웃에서 홈 아웃이면 이닝이 끝나고, 같은 타자는 다음 이닝에 다시 친다', () => {
+    const r = asPitcher(adjust(1, 2, [false, false, true]), ...pitches('ball'), pitchWith('wildPitch', { runnerOutAtHome: true }));
+    expect(r.plateAppearances[0].outcome).toBe('inningEnded');
+    expect(r.plateAppearances[0].outsRecorded).toBe(1);
+    expect(r.state).toMatchObject({ inning: 2, outs: 0, count: { balls: 0, strikes: 0 } });
+  });
+
+  it('우리 아이가 3루 주자였으면 주루 아웃으로 남고 장면이 끝난다', () => {
+    const r = replayGame([appear('runner', { childBase: 2 }), pitchWith('wildPitch', { runnerOutAtHome: true })], settings());
+    expect(r.runnerEvents.map((e) => [e.kind, e.base])).toEqual([['out', 2]]);
+    expect(r.scenes[0].endedBy).toBe('childDone');
+    expect(r.halves.get('1B')?.runs).toBe(0);
+  });
+
+  it('3루 주자가 없으면 홈 아웃은 무시한다 (아웃 수 그대로)', () => {
+    const r = asPitcher(adjust(1, 0, [true, false, false]), pitchWith('wildPitch', { runnerOutAtHome: true }));
+    expect([r.state?.outs, r.state?.bases]).toEqual([0, [false, true, false]]);
   });
 });
 
