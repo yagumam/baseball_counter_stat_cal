@@ -75,6 +75,23 @@ function sameHeader(a, b) {
   return true;
 }
 
+/**
+ * 앱이 열을 끝에 더했으면(형식 버전은 그대로) 탭의 예전 줄에 빈 칸을 넣어 새 머리줄에 맞춘다.
+ * 예전 머리줄이 새 머리줄의 앞부분이 아니면 null (열 구조가 다름)
+ */
+function widenRows(values, expected) {
+  var oldColumns = values[0].map(String);
+  var oldWidth = oldColumns.length - 1;
+  var newWidth = expected.length - 1;
+  if (oldColumns[oldWidth] !== DEVICE_COLUMN || oldWidth >= newWidth) return null;
+  if (!sameHeader(oldColumns.slice(0, oldWidth), expected.slice(0, oldWidth))) return null;
+  var blanks = [];
+  for (var i = oldWidth; i < newWidth; i += 1) blanks.push('');
+  return [expected].concat(values.slice(1).map(function (row) {
+    return row.slice(0, oldWidth).concat(blanks, [row[oldWidth]]);
+  }));
+}
+
 /** 시트의 지금 줄(머리줄 포함). 비어 있으면 [] */
 function readValues(sheet) {
   return sheet.getLastRow() > 0 ? sheet.getDataRange().getValues() : [];
@@ -100,7 +117,12 @@ function syncTable(book, name, body, removeIds) {
   if (body.deleteAll !== true) {
     var expected = body.tables[name].columns.map(function (c) { return c.name; }).concat([DEVICE_COLUMN]);
     if (header === null) header = expected;
-    else if (!sameHeader(header, expected)) throw new Error(name + ' 탭의 열 구조가 앱과 다릅니다. 새 탭으로 옮기거나 형식 버전을 확인하세요.');
+    else if (!sameHeader(header, expected)) {
+      var widened = widenRows(values, expected);
+      if (widened === null) throw new Error(name + ' 탭의 열 구조가 앱과 다릅니다. 새 탭으로 옮기거나 형식 버전을 확인하세요.');
+      values = widened;
+      header = expected;
+    }
   }
   if (header === null) return 0;
   var deviceIndex = header.indexOf(DEVICE_COLUMN);

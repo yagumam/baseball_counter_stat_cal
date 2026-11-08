@@ -35,6 +35,7 @@ import { LineScore } from './line-score';
 import { ActiveState, GameReplay } from './replay';
 import { SceneDraft, SceneSetupActions, defaultRole, defaultSceneDraft, sceneSetupView } from './scene-setup-view';
 import { PlayFieldingActions, PlayFieldingDraft, playFieldingPopup } from './fielding-view';
+import { HomePlayActions, HomePlayDraft, homePlayPopup } from './home-play-view';
 import { Hand } from './settings';
 import { BatterActions, BatterDraft, batterPill, batterPopup } from './batter-info-view';
 import { TipKey, tipPopup } from './tips';
@@ -74,6 +75,7 @@ export interface InputActions {
   scene: Omit<SceneSetupActions, 'replaceReason'>;
   toggleDetail: () => void;
   playFielding: PlayFieldingActions;
+  homePlay: HomePlayActions;
   sheet: PitchSheetActions;
   field: FieldActions;
   batter: BatterActions;
@@ -99,6 +101,8 @@ export interface InputModel {
   readonly fieldDraft: FieldDraft | null;
   /** 수비 중 주자 상황에서 아이의 수비 기록을 고르는 중이면 그 값 */
   readonly playFielding: PlayFieldingDraft | null;
+  /** 와일드피치·포일 때 3루 주자가 어떻게 됐는지 묻는 중이면 그 값 */
+  readonly homePlay: HomePlayDraft | null;
   /** 상대 타자 정보를 고르는 중이면 그 값 */
   readonly batterDraft: BatterDraft | null;
   /** 처음 한 번 보여주는 기록 요령 */
@@ -592,6 +596,7 @@ export function inputView(model: InputModel, actions: InputActions): HTMLElement
     // 친 공은 야구장 그림 창에서 낙구 지점과 질을 고른 뒤 기록한다.
     model.fieldDraft ? fieldPanel(model.fieldDraft, actions.field) : null,
     model.playFielding ? playFieldingPopup(model.playFielding, actions.playFielding) : null,
+    model.homePlay ? homePlayPopup(model.homePlay, actions.homePlay) : null,
     model.batterDraft ? batterPopup(model.batterDraft, actions.batter) : null,
     model.tip ? tipPopup(model.tip, actions.closeTip) : null,
   ]);

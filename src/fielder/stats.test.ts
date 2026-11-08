@@ -130,3 +130,16 @@ describe('여러 경기 합계', () => {
     expect(fieldingPercentage([shortstop, second]).expression).toBe('4 ÷ 5');
   });
 });
+
+describe('와일드피치 · 포일 때 홈에서 아웃 (포수)', () => {
+  // 포수로 1회: 3루 주자 포일 홈 아웃을 태그(자살)
+  const catcher = asGame('11월 8일 ○○전', [
+    appear('fielder', { position: 'catcher', bases: [false, false, true] }),
+    pitchWith('passedBall', { runnerOutAtHome: true, fielding: ['putout'] }),
+  ]);
+
+  it('태그 아웃은 자살 1, 잡은 아웃 1 (1/3이닝)', () => {
+    expect(putouts([catcher]).value).toBe(1);
+    expect(fieldingInnings([catcher]).display).toBe('1/3');
+  });
+});

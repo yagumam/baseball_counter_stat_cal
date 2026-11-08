@@ -158,6 +158,7 @@ export interface PitchDetails {
   readonly fielding?: readonly FieldingCredit[];
   readonly doublePlay?: BaseIndex;
   readonly outType?: OutType;
+  readonly runnerOutAtHome?: true;
 }
 
 export function addPitch(game: Game, result: PitchResult, details: PitchDetails = {}): Game {

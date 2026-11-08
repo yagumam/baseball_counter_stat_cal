@@ -10,7 +10,7 @@ import { pitcherReport } from './pitcher/report';
 import { batterReport } from './batter/report';
 import { fielderReport } from './fielder/report';
 import { h, segmented } from './common/dom';
-import { BaseIndex, BatterHand, ExitReason, FieldingCredit, GAME_TYPES, GameType, HitType, OutType, PLACE_MAX_LENGTH, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, playEvents } from './common/events';
+import { BaseIndex, BatterHand, ExitReason, FieldingCredit, GAME_TYPES, GameType, HitType, OutType, PLACE_MAX_LENGTH, PitchResult, Role, TEAM_NAME_MAX_LENGTH, UndoableEvent, activeEvents, isLooseBall, playEvents } from './common/events';
 import { outTypeOptions, stealPlays } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
@@ -37,6 +37,7 @@ import {
 } from './common/settings';
 import { applyOrientation } from './common/orientation';
 import { FIELDING_PLAYS, PlayFieldingDraft } from './common/fielding-view';
+import { HomePlayDraft } from './common/home-play-view';
 import { BatterDraft } from './common/batter-info-view';
 import { TipKey, hasSeenTip, markTipSeen } from './common/tips';
 import { OUTS_PER_INNING } from './common/count';
@@ -144,6 +145,8 @@ interface State {
   gameList: GameListView;
   /** 수비 중 주자 상황에서 아이의 수비 기록을 고르는 중 */
   playFielding: PlayFieldingDraft | null;
+  /** 와일드피치·포일 때 3루 주자가 어떻게 됐는지 묻는 중 */
+  homePlay: HomePlayDraft | null;
   /** 상대 타자 정보를 고르는 중 */
   batterDraft: BatterDraft | null;
   /** 처음 한 번 보여주는 기록 요령. 닫으면 next로 하려던 기록을 이어서 한다. */
@@ -308,6 +311,7 @@ export function mountApp(root: HTMLElement): void {
       calendar: { month: monthOf(latest ? gameInfo(latest).date : today()), zoom: 'month', day: null },
     },
     playFielding: null,
+    homePlay: null,
     batterDraft: null,
     tip: null,
     resultGameId: null,
@@ -387,12 +391,14 @@ export function mountApp(root: HTMLElement): void {
       pitch: PitchDetail;
       battedBall?: FieldDraft | null;
       fielding?: readonly FieldingCredit[] | null;
+      runnerOutAtHome?: boolean;
     },
   ): void => {
     const detail = extra.pitch;
     const ball = extra.battedBall;
     state.pitchSheet = null;
     state.fieldDraft = null;
+    state.homePlay = null;
     state.chooser = null;
     updateCurrent((g) =>
       addPitch(g, result, {
@@ -404,6 +410,7 @@ export function mountApp(root: HTMLElement): void {
         speed: detail.speed ?? undefined,
         battedBall: ball ? { x: ball.x, y: ball.y, type: ball.type, strength: ball.strength } : undefined,
         fielding: extra.fielding ?? undefined,
+        runnerOutAtHome: extra.runnerOutAtHome ? true : undefined,
       }),
     );
     // 실책 출루 뒤에는 더 간 주자나 아웃된 주자(3아웃 포함)를 바로 맞추게 한다.
@@ -455,6 +462,13 @@ export function mountApp(root: HTMLElement): void {
         outType: null,
         outTypeOptions: outTypes,
       };
+      render();
+      return;
+    }
+    // 3루 주자가 있을 때 공이 빠지면, 홈인했는지 홈에서 아웃됐는지 묻는다.
+    if (isLooseBall(result) && currentReplay()?.state?.bases[2]) {
+      state.pitchSheet = null;
+      state.homePlay = { result, pitch, fielding: childIsFielding() ? [] : null };
       render();
       return;
     }
@@ -566,6 +580,18 @@ export function mountApp(root: HTMLElement): void {
         return;
       }
       recordRunnerPlay(action, base, []);
+    },
+    homePlay: {
+      change: (draft: HomePlayDraft) => {
+        state.homePlay = draft;
+        render();
+      },
+      scored: (draft: HomePlayDraft) => recordPitch(draft.result, { pitch: draft.pitch }),
+      out: (draft: HomePlayDraft) => recordPitch(draft.result, { pitch: draft.pitch, fielding: draft.fielding, runnerOutAtHome: true }),
+      cancel: () => {
+        state.homePlay = null;
+        render();
+      },
     },
     playFielding: {
       change: (draft: PlayFieldingDraft) => {
@@ -1167,6 +1193,7 @@ export function mountApp(root: HTMLElement): void {
             hand: state.hand,
             fieldDraft: state.fieldDraft,
             playFielding: state.playFielding,
+            homePlay: state.homePlay,
             batterDraft: state.batterDraft,
             tip: state.tip?.key ?? null,
             childBatterHand: state.childBatterHand,

@@ -11,6 +11,7 @@ export const TIPS: Record<TipKey, { title: string; lines: readonly string[] }> =
     lines: [
       '와일드피치(투수가 빠뜨림)와 포일(포수가 놓침)은 볼 하나와 함께 모든 주자를 한 칸씩 옮겨요.',
       '주자가 두 칸 이상 갔다면, 누른 다음 "상황 고치기"에서 주자 자리와 들어온 점수를 맞춰 주세요.',
+      '3루 주자가 있으면 홈인했는지, 홈에서 아웃됐는지 한 번 더 물어봐요.',
     ],
   },
   fieldersChoice: {
