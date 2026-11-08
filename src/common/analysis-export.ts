@@ -34,6 +34,7 @@ import {
   Team,
   UndoableEvent,
   activeEvents,
+  isLooseBall,
 } from './events';
 import { GAME_TYPE_LABEL, Game, GameInfo, VENUE_LABEL, gameInfo } from './game';
 import { halfOrder, offensiveHalf, defensiveHalf } from './innings';
@@ -276,6 +277,14 @@ export const PITCH_COLUMNS: readonly Column<PitchRow>[] = [
   { name: 'edited', label: '나중에 고친 공인지 (값은 고친 뒤 기준)', type: 'binary', codes: BINARY_CODES, value: (r) => binary(r.edited) },
   { name: 'created_at', label: '이 공을 기록한 시각', type: 'datetime', value: (r) => r.pitch.createdAt },
   { name: 'author', label: '기록한 사람', type: 'text', value: (r) => r.pitch.author },
+  // 형식 버전 1에 끝에 더한 열 (앞 열은 그대로)
+  {
+    name: 'runner_out_at_home',
+    label: '와일드피치·포일 때 3루 주자가 홈으로 뛰다 아웃됐는지 (와일드피치·포일일 때만, 0이면 홈인 또는 3루 주자 없음)',
+    type: 'binary',
+    codes: BINARY_CODES,
+    value: (r) => (isLooseBall(r.pitch.result) ? binary(r.pitch.runnerOutAtHome === true) : null),
+  },
 ];
 
 // ---------- 주자 상황 표 ----------

@@ -212,6 +212,22 @@ describe('시트에서 받기 (apps-script/Code.gs)', () => {
     expect(book.sheets.size).toBe(0);
   });
 
+  it('앱이 열을 끝에 더했으면 예전 줄에 빈 칸을 넣어 맞춘다', () => {
+    const book = new FakeBook();
+    const old = sampleGame('예전 팀');
+    send(book, syncPayload(DEVICE_B, [old], [], replayOf));
+    // 예전 앱이 보낸 것처럼 마지막 열(runner_out_at_home)을 뺀 탭
+    const sheet = book.sheets.get('pitches') as FakeSheet;
+    const last = PITCH_COLUMNS.length - 1;
+    sheet.values = sheet.values.map((row) => [...row.slice(0, last), row[row.length - 1]]);
+    send(book, syncPayload(DEVICE_A, [sampleGame()], [], replayOf));
+    const rows = book.rows('pitches');
+    expect(rows[0]).toEqual([...PITCH_COLUMNS.map((c) => c.name), 'device_id']);
+    expect(rows.every((r) => r.length === PITCH_COLUMNS.length + 1)).toBe(true);
+    const oldRow = rows.find((r) => r.at(-1) === DEVICE_B) ?? [];
+    expect([oldRow[0], oldRow[last]]).toEqual([old.id, '']);
+  });
+
   it('탭의 열 구조가 다르면 덮어쓰지 않고 멈춘다', () => {
     const book = new FakeBook();
     book.insertSheet('pitches').values = [['old_column']];

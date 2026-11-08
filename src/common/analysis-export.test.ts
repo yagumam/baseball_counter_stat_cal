@@ -107,13 +107,13 @@ describe('분석용 열 정의', () => {
     expect(snakeCode('ball')).toBe('ball');
   });
 
-  it('공 표 열은 형식 버전 1 그대로다 (주자 상황 표를 더해도 바뀌지 않음)', () => {
+  it('공 표 열은 형식 버전 1 그대로다 (주자 상황 표를 더해도 바뀌지 않고, 새 열은 끝에만 더한다)', () => {
     expect(PITCH_COLUMNS.map((c) => c.name).join(',')).toBe(
       'game_id,game_date,pitch_id,event_seq,pa_id,pa_seq,pitch_seq,scene_id,scene_seq,child_role,child_position,child_base,' +
         'batter_actor,batter_hand,batter_grade,inning,half,outs_before,on_1b,on_2b,on_3b,balls_before,strikes_before,' +
         'runs_in_half_before,score_us_before,score_them_before,pitch_result,hit_type,out_type,double_play_base,pitch_type,' +
         'pitch_speed,zone_x,zone_y,batted_type,batted_strength,batted_x,batted_y,fielding_putout,fielding_assist,' +
-        'fielding_error,pa_outcome,edited,created_at,author',
+        'fielding_error,pa_outcome,edited,created_at,author,runner_out_at_home',
     );
   });
 
@@ -228,6 +228,18 @@ describe('분석용 공 표 (pitches)', () => {
     expect([r[1].child_role, r[1].half, r[1].batter_actor, r[1].child_position, r[1].fielding_putout, r[1].scene_seq]).toEqual(['batter', 'bottom', 'child', '', '', '2']);
     // 안타로 나간 뒤 다음 타자의 공: 아이는 1루 주자
     expect([r[2].child_role, r[2].batter_actor, r[2].child_base, r[2].on_1b]).toEqual(['runner', 'teammate', '1b', '1']);
+  });
+
+  it('와일드피치·포일 홈 아웃: 홈 아웃 1, 그냥 와일드피치 0, 다른 공은 빈 칸', () => {
+    let g = createGame({ date: '2026-11-08', opponent: '가팀', gameType: 'practice', battingFirst: 'them', venue: 'home', ourTeam: '', place: '' });
+    g = addAppearance(g, { role: 'pitcher', inning: 1, outs: 0, bases: [true, false, true], balls: 0, strikes: 0 });
+    g = addPitch(g, 'wildPitch', { runnerOutAtHome: true });
+    g = addPitch(g, 'passedBall');
+    g = addPitch(g, 'ball');
+    const r = records(analysisPitchesCsv([g], replayOf));
+    expect(r.map((x) => x.runner_out_at_home)).toEqual(['1', '0', '']);
+    // 홈 아웃 뒤 다음 공: 1아웃, 1루 주자는 2루, 점수 없음
+    expect([r[1].outs_before, r[1].on_1b, r[1].on_2b, r[1].on_3b, r[1].score_them_before]).toEqual(['1', '0', '1', '0', '0']);
   });
 
   it('앞 초·말의 점수는 스코어보드(직접 넣은 점수 우선) 값을 쓴다', () => {
