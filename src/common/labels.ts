@@ -270,7 +270,8 @@ export const PITCH_LABEL: Record<PitchResult, string> = {
   hitByPitch: '몸에 맞음',
 };
 
-export function pitchLabel(pitch: Pick<PitchEvent, 'result' | 'hitType' | 'doublePlay' | 'outType'>): string {
+export function pitchLabel(pitch: Pick<PitchEvent, 'result' | 'hitType' | 'doublePlay' | 'outType' | 'runnerOutAtHome'>): string {
+  if (pitch.runnerOutAtHome) return `${PITCH_LABEL[pitch.result]} (${HOME_PLAY_LABEL.out})`;
   if (pitch.result === 'hit') return HIT_TYPE_LABEL[pitch.hitType ?? 'single'];
   if (pitch.result === 'out' && pitch.doublePlay !== undefined) return `병살 (${BASE_NAMES[pitch.doublePlay]} 주자도 아웃)`;
   if (pitch.result === 'out' && pitch.outType !== undefined) return OUT_TYPE_LABEL[pitch.outType];
@@ -290,6 +291,9 @@ export const RUNNER_BUTTONS: readonly { action: RunnerAction; label: string; hin
 ];
 
 /** 아이가 주자일 때 다른 주자 아웃을 고르는 단추 */
+/** 와일드피치·포일 때 3루 주자가 어떻게 됐는지 묻는 창 */
+export const HOME_PLAY_LABEL = { question: '3루 주자는?', scored: '홈인 (1점)', out: '3루 주자 홈에서 아웃' } as const;
+
 export const OTHER_RUNNER_OUT_LABEL = '다른 주자 아웃';
 
 /** 경기 끝 화면 단추 */
