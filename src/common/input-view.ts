@@ -27,6 +27,7 @@ import {
   MINI_GAME_LABEL,
   SCENE_END_BUTTON,
   RUNNER_BUTTONS,
+  VIDEO_LABEL,
   RunnerAction,
   eventLabel,
   outcomeLabel,
@@ -39,6 +40,9 @@ import { HomePlayActions, HomePlayDraft, homePlayPopup } from './home-play-view'
 import { Hand } from './settings';
 import { BatterActions, BatterDraft, batterPill, batterPopup } from './batter-info-view';
 import { TipKey, tipPopup } from './tips';
+import { CameraActions, CameraModel, cameraButton, cameraPreview, videoSavePopup } from './camera-view';
+import { OverlaySnapshot } from './video-overlay';
+import { RecordedVideo } from './video-recorder';
 import { FieldActions, FieldDraft, PitchSheet, PitchSheetActions, SheetBatter, fieldPanel, pitchDetailToggle, pitchSheetView } from './pitch-detail-view';
 
 export interface SituationDraft {
@@ -80,6 +84,7 @@ export interface InputActions {
   field: FieldActions;
   batter: BatterActions;
   closeTip: () => void;
+  camera: CameraActions;
 }
 
 export interface InputModel {
@@ -111,6 +116,10 @@ export interface InputModel {
   readonly childBatterHand: BatterHand | null;
   /** 미니게임에서 경기 끝을 물어보는 중인지 */
   readonly confirmEnd: boolean;
+  /** 영상 찍기 중이면 카메라 상태. 꺼져 있으면 null */
+  readonly camera: CameraModel | null;
+  /** 녹화를 끝내고 저장을 기다리는 영상 (카메라를 꺼도 남는다) */
+  readonly recordedVideo: RecordedVideo | null;
 }
 
 function dots(filled: number, total: number, kind: string, label: string): HTMLElement {
@@ -127,28 +136,65 @@ function roleText(state: ActiveState): string {
   return ROLE_LABEL[state.role];
 }
 
+interface Workload {
+  readonly label: string;
+  readonly value: number;
+  readonly note: string | null;
+}
+
 /** 상황판 아래 숫자: 투수면 투구 수, 타자면 이번 타석 본 공 */
-function workloadPill(replay: GameReplay, state: ActiveState): HTMLElement | null {
+function workloadOf(replay: GameReplay, state: ActiveState): Workload | null {
   const pas = replay.plateAppearances;
   if (state.role === 'pitcher') {
     const mine = pas.filter((pa) => pa.fieldingPosition === 'pitcher');
     const total = mine.reduce((n, pa) => n + pa.pitches.length, 0);
     const inning = mine.filter((pa) => pa.inning === state.inning && pa.half === state.half).reduce((n, pa) => n + pa.pitches.length, 0);
-    return h('span', { className: 'pill' }, [h('small', { text: '투구 ' }), `${total}`, h('small', { text: ` (이번 회 ${inning})` })]);
+    return { label: '투구', value: total, note: `이번 회 ${inning}` };
   }
   if (state.role === 'fielder') {
     // 다른 투수가 던지는 동안이라 경기 전체 투구 수는 모른다. 이번 회 기록한 공만 보여준다.
     const inning = pas
       .filter((pa) => pa.sceneId === state.sceneId && pa.inning === state.inning && pa.half === state.half)
       .reduce((n, pa) => n + pa.pitches.length, 0);
-    return h('span', { className: 'pill' }, [h('small', { text: '이번 회 투구 ' }), `${inning}`]);
+    return { label: '이번 회 투구', value: inning, note: null };
   }
   if (state.role === 'batter') {
     const current = pas[pas.length - 1];
     const seen = current && current.outcome === null && current.actor === 'child' ? current.pitches.length : 0;
-    return h('span', { className: 'pill' }, [h('small', { text: '이번 타석 본 공 ' }), `${seen}`]);
+    return { label: '이번 타석 본 공', value: seen, note: null };
   }
   return null;
+}
+
+/** withNote: 좁은 칸(영상 찍기 옆 칸)에서는 덧붙임 "(이번 회 n)"을 뺀다. */
+function workloadPill(replay: GameReplay, state: ActiveState, withNote = true): HTMLElement | null {
+  const work = workloadOf(replay, state);
+  if (!work) return null;
+  const note = withNote && work.note ? h('small', { text: ` (${work.note})` }) : null;
+  return h('span', { className: 'pill' }, [h('small', { text: `${work.label} ` }), `${work.value}`, note]);
+}
+
+/** 영상 위에 그릴 상황판 내용 (video-overlay.ts가 그린다) */
+export function overlaySnapshot(model: Pick<InputModel, 'replay' | 'info' | 'score' | 'events'>): OverlaySnapshot {
+  const { replay, info, score, events } = model;
+  const state = replay.state;
+  const work = state ? workloadOf(replay, state) : null;
+  const last = events[events.length - 1];
+  return {
+    inningText: state ? halfInningLabel(state.inning, state.half) : null,
+    roleText: state ? roleText(state) : null,
+    balls: state?.count.balls ?? 0,
+    strikes: state?.count.strikes ?? 0,
+    outs: state?.outs ?? 0,
+    bases: state?.bases ?? [false, false, false],
+    childBase: state?.childBase ?? null,
+    themName: opponentLabel(info.opponent),
+    usName: ourTeamLabel(info),
+    themRuns: score.totalRuns.them,
+    usRuns: score.totalRuns.us,
+    workload: work ? `${work.label} ${work.value}` : null,
+    lastEvent: last ? { id: last.id, text: eventLabel(last) } : null,
+  };
 }
 
 const END_REASON = { exit: '교체 아웃', next: '다음 장면으로', childDone: '아이 차례 끝', halfOver: '3아웃', gameEnd: '경기 끝' } as const;
@@ -191,17 +237,23 @@ function board(model: InputModel, actions: InputActions): HTMLElement {
     info.gameType === 'mini' && state
       ? h('button', { className, text: `${MINI_GAME_LABEL.end} ›`, onClick: () => actions.askEndGame(true) })
       : h('button', { className, text: '장면 바꾸기 ›', onClick: actions.openScene });
-  const head = h('div', { className: 'board-head' }, [
-    h('button', { className: 'board-game', onClick: actions.openGames }, [`${dateLabel(info.date)} · ${opponentLabel(info.opponent)}`]),
-    sceneButton('board-scene'),
-  ]);
-  // 화면 분할처럼 작은 창에서는 맨 위 줄(board-head)을 숨기므로, 같은 단추를 점수 칸 옆에 작게 보여준다.
-  const scenePill = sceneButton('pill scene-pill');
   const scorePill = h('button', { className: 'pill score', onClick: actions.openScoreboard }, [
     h('small', { text: '상대 ' }),
     `${score.totalRuns.them} : ${score.totalRuns.us}`,
     h('small', { text: ' 우리 ›' }),
   ]);
+
+  const head = h('div', { className: 'board-head' }, [
+    // 촬영 중에는 경기 날짜 대신 점수를 맨 위 줄에 두어 옆 칸 높이를 줄인다.
+    model.camera ? scorePill : h('button', { className: 'board-game', onClick: actions.openGames }, [`${dateLabel(info.date)} · ${opponentLabel(info.opponent)}`]),
+    model.camera
+      ? h('button', { className: 'board-camera', text: VIDEO_LABEL.close, onClick: actions.camera.close })
+      : h('button', { className: 'board-camera', text: `● ${VIDEO_LABEL.open}`, onClick: actions.camera.open }),
+    sceneButton('board-scene'),
+  ]);
+  // 화면 분할처럼 작은 창에서는 맨 위 줄(board-head)을 숨기므로, 같은 단추를 점수 칸 옆에 작게 보여준다.
+  const scenePill = sceneButton('pill scene-pill');
+  if (model.camera) return cameraBoard(model, model.camera, actions, head);
 
   if (!state) {
     return h('div', { className: 'board' }, [
@@ -238,6 +290,31 @@ function board(model: InputModel, actions: InputActions): HTMLElement {
     // 장면 중에는 아래 "↶ 취소" 단추가 방금 기록을 보여 주므로, 높이가 낮은 화면에서는 CSS로 숨긴다.
     h('p', { className: 'message live', text: boardMessage(replay, info.gameType === 'mini'), attrs: { 'aria-live': 'polite' } }),
     boardMore(model),
+  ]);
+}
+
+/**
+ * 영상 찍기 중인 상황판: 카메라 그림(상황판이 겹쳐 그려짐) 옆에 카운트·주자·점수와 녹화 단추.
+ * 카메라 그림이 세로로 길어서 옆 칸에 상황을 작게 모은다. 녹화 단추는 엄지 쪽(아래)에 둔다.
+ */
+function cameraBoard(model: InputModel, camera: CameraModel, actions: InputActions, head: HTMLElement): HTMLElement {
+  const { replay, info } = model;
+  const state = replay.state;
+  const situation = state
+    ? [
+        h('p', { className: 'inning' }, [h('strong', { text: halfInningLabel(state.inning, state.half) }), h('span', { className: `role-badge ${state.role}`, text: roleText(state) })]),
+        h('div', { className: 'count-row' }, [h('span', { text: '볼' }), dots(state.count.balls, MAX_BALLS_IN_COUNT, 'ball', '볼')]),
+        h('div', { className: 'count-row' }, [h('span', { text: '스트라이크' }), dots(state.count.strikes, MAX_STRIKES_IN_COUNT, 'strike', '스트라이크')]),
+        h('div', { className: 'count-row' }, [h('span', { text: '아웃' }), dots(state.outs, OUTS_PER_INNING - 1, 'out', '아웃')]),
+        h('div', { className: 'camera-bases' }, [diamond(state.bases, undefined, state.childBase), workloadPill(replay, state, false)]),
+      ]
+    : [h('p', { className: 'message', text: boardMessage(replay, info.gameType === 'mini'), attrs: { 'aria-live': 'polite' } })];
+  return h('div', { className: 'board camera-board' }, [
+    head,
+    h('div', { className: 'camera-main' }, [
+      cameraPreview(camera),
+      h('div', { className: 'camera-side' }, [...situation, cameraButton(camera, actions.camera)]),
+    ]),
   ]);
 }
 
@@ -589,7 +666,7 @@ function sheetBatter(model: InputModel): SheetBatter {
 }
 
 export function inputView(model: InputModel, actions: InputActions): HTMLElement {
-  return h('section', { className: 'input' }, [
+  return h('section', { className: model.camera ? 'input camera-on' : 'input' }, [
     h('div', { className: 'board-sticky' }, [board(model, actions)]),
     controls(model, actions),
     model.pitchSheet ? pitchSheetView(model.pitchSheet, model.hand, actions.sheet, sheetBatter(model)) : null,
@@ -599,5 +676,6 @@ export function inputView(model: InputModel, actions: InputActions): HTMLElement
     model.homePlay ? homePlayPopup(model.homePlay, actions.homePlay) : null,
     model.batterDraft ? batterPopup(model.batterDraft, actions.batter) : null,
     model.tip ? tipPopup(model.tip, actions.closeTip) : null,
+    model.recordedVideo ? videoSavePopup(model.recordedVideo, actions.camera) : null,
   ]);
 }

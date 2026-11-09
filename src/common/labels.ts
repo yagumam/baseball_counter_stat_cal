@@ -470,3 +470,14 @@ export function sceneTitle(role: Role, inning: number, half: 'top' | 'bottom', p
   const roleText = role === 'fielder' && position ? `${POSITION_LABEL[position]}(수비)` : ROLE_LABEL[role];
   return `${halfInningLabel(inning, half)} · ${roleText}로 등장`;
 }
+
+/** 영상 찍기 (상황판을 겹쳐 녹화) */
+export const VIDEO_LABEL = {
+  open: '영상 찍기',
+  record: '녹화 시작',
+  stop: '녹화 끝',
+  close: '카메라 끄기',
+  save: '영상 저장',
+  share: '영상 보내기',
+  discard: '저장 안 함',
+} as const;

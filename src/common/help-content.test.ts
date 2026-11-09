@@ -50,6 +50,7 @@ import {
   EDIT_EVENT_LABEL,
   CALENDAR_LABEL,
   ANALYSIS_KIND_LABEL,
+  VIDEO_LABEL,
 } from './labels';
 
 const manualText = MANUAL_SECTIONS.flatMap((s) => [s.title, ...s.items.flatMap((i) => [i.title, ...i.text])]).join('\n');
@@ -133,5 +134,9 @@ describe('도움말이 화면과 맞는지', () => {
   it('매뉴얼 항목 id가 겹치지 않는다', () => {
     const ids = MANUAL_SECTIONS.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('영상 찍기 단추가 매뉴얼에 있다', () => {
+    expect(missing(Object.values(VIDEO_LABEL))).toEqual([]);
   });
 });

@@ -15,7 +15,9 @@ import { outTypeOptions, stealPlays } from './common/bases';
 import { mergeGames, mergeSummary, parseBackup } from './common/backup-import';
 import { BACKUP_REMINDER_MIN_GAMES, backupBanner } from './common/backup-banner';
 import { gamesChangedSince, loadLastBackup, loadReminderDismissed, saveLastBackup, saveReminderDismissed, shouldShowReminder } from './common/backup-reminder';
-import { downloadFile, shareFile } from './common/download';
+import { downloadFile, shareFile, shareVideo } from './common/download';
+import { OverlayCamera, RecordedVideo, videoFileName } from './common/video-recorder';
+import { CameraActions } from './common/camera-view';
 import { backupFileName, backupJson, pitchesCsv, pitchesFileName } from './common/export';
 import { analysisCodebook, analysisFileName, analysisGamesCsv, analysisPitchesCsv, analysisPlaysCsv } from './common/analysis-export';
 import { DownloadKind } from './common/data-section';
@@ -72,7 +74,7 @@ import {
 } from './common/game';
 import { GameForm, GameListView, gamesView } from './common/games-view';
 import { sortGames } from './common/game-list';
-import { Chooser, SituationDraft, inputView } from './common/input-view';
+import { Chooser, SituationDraft, inputView, overlaySnapshot } from './common/input-view';
 import {
   ANALYSIS_KIND_LABEL,
   ANALYSIS_SCOPE_LABEL,
@@ -513,7 +515,77 @@ export function mountApp(root: HTMLElement): void {
     record();
   };
 
+  // 영상 찍기: 카메라와 녹화는 화면을 다시 그려도 이어지도록 하나만 만들어 둔다. (기록 데이터와 따로)
+  let camera: OverlayCamera | null = null;
+  let recordedVideo: RecordedVideo | null = null;
+
+  const finishRecording = async (): Promise<void> => {
+    const video = await camera?.stopRecording();
+    if (video) recordedVideo = video;
+    render();
+  };
+
+  const recordedFile = (video: RecordedVideo): File => {
+    const game = currentGame();
+    const info = game ? gameInfo(game) : null;
+    const name = videoFileName(info?.date ?? '', info?.opponent ?? '', video.startedAt, video.extension);
+    return new File([video.blob], name, { type: video.blob.type });
+  };
+
+  const cameraActions: CameraActions = {
+    open: () => {
+      camera ??= new OverlayCamera(() => render());
+      void camera.start();
+    },
+    close: () => {
+      const closing = camera;
+      if (!closing) return;
+      camera = null;
+      // 녹화 중이면 영상을 받아 둔 뒤 카메라를 끈다.
+      void closing.stopRecording().then((video) => {
+        if (video) recordedVideo = video;
+        closing.stop();
+        render();
+      });
+      render();
+    },
+    record: () => camera?.startRecording(),
+    stopRecord: () => void finishRecording(),
+    save: () => {
+      if (!recordedVideo) return;
+      const file = recordedFile(recordedVideo);
+      void downloadFile(file.name, file, file.type).then((result) => {
+        if (result !== 'saved') {
+          showToast('영상을 저장하지 못했어요. 다시 눌러 주세요.');
+          return;
+        }
+        recordedVideo = null;
+        showToast(`영상을 저장했어요: ${file.name}`);
+        render();
+      });
+    },
+    share: () => {
+      if (!recordedVideo) return;
+      const file = recordedFile(recordedVideo);
+      void shareVideo(file).then((result) => {
+        if (result === 'unsupported') {
+          showToast('여기서는 보내기를 쓸 수 없어요. "영상 저장"을 눌러 주세요.');
+          return;
+        }
+        if (result === 'shared') {
+          recordedVideo = null;
+          render();
+        }
+      });
+    },
+    discard: () => {
+      recordedVideo = null;
+      render();
+    },
+  };
+
   const inputActions = {
+    camera: cameraActions,
     pitch: (result: PitchResult, hitType?: HitType) => withTip(result, () => recordPitchStart(result, hitType)),
     closeTip: () => {
       const tip = state.tip;
@@ -1176,6 +1248,7 @@ export function mountApp(root: HTMLElement): void {
     const replay = replayOf(game);
     const events = activeEvents(game.events);
     const score = lineScore(replay, events);
+    camera?.setSnapshot(overlaySnapshot({ replay, info, score, events }));
     switch (state.tab) {
       case 'input':
         return inputView(
@@ -1198,6 +1271,8 @@ export function mountApp(root: HTMLElement): void {
             tip: state.tip?.key ?? null,
             childBatterHand: state.childBatterHand,
             confirmEnd: state.confirmEnd,
+            camera: camera ? { status: camera.status, canvas: camera.canvas, timer: camera.timer, error: camera.error } : null,
+            recordedVideo,
           },
           inputActions,
         );

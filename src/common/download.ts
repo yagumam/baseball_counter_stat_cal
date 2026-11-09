@@ -68,3 +68,15 @@ export async function shareFile(names: { primary: string; fallback: string }, da
     return (error as { name?: string } | null)?.name === 'AbortError' ? 'declined' : 'unsupported';
   }
 }
+
+/** 찍은 영상을 휴대폰 공유 창(카카오톡·구글 드라이브 등)으로 보낸다. 공유를 못 쓰는 곳이면 'unsupported'. */
+export async function shareVideo(file: File): Promise<ShareResult> {
+  const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+  if (typeof nav.share !== 'function' || typeof nav.canShare !== 'function' || !nav.canShare({ files: [file] })) return 'unsupported';
+  try {
+    await nav.share({ files: [file], title: file.name });
+    return 'shared';
+  } catch (error) {
+    return (error as { name?: string } | null)?.name === 'AbortError' ? 'declined' : 'unsupported';
+  }
+}
